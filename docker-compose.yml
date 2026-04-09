@@ -1,0 +1,48 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tmac-crm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tmac_crm
+      POSTGRES_USER: tmac
+      POSTGRES_PASSWORD: change-this-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: tmac-crm-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      CLIENT_ORIGIN: http://localhost:8080
+      DATABASE_URL: postgresql://tmac:change-this-password@postgres:5432/tmac_crm?schema=public
+      JWT_SECRET: change-this-to-a-long-random-value
+      JWT_EXPIRES_IN: 8h
+      TMAC_ADMIN_EMAIL: admin@tmaccrm.local
+      TMAC_ADMIN_PASSWORD: ChangeMe123!
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:4000
+    container_name: tmac-crm-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
