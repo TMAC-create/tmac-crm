@@ -8,5 +8,7 @@ export type JwtPayload = {
 };
 
 export function signToken(payload: JwtPayload) {
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+  return jwt.sign(payload, env.jwtSecret as string, {
+    expiresIn: '8h' as jwt.SignOptions['expiresIn'],
+  });
 }
