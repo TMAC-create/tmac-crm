@@ -11,7 +11,30 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
+authRouter.get('/seed-admin', async (_req, res) => {
+  const existing = await prisma.user.findUnique({ where: { email: 'admin@tmaccrm.local' } });
+  if (existing) {
+    return res.json({ message: 'Seed admin already exists.' });
+  }
 
+  const passwordHash = await bcrypt.hash('ChangeMe123!', 10);
+  const user = await prisma.user.create({
+    data: {
+      name: 'TMAC Admin',
+      email: 'admin@tmaccrm.local',
+      passwordHash,
+      role: 'ADMIN',
+    },
+  });
+
+  return res.status(201).json({
+    message: 'Seed admin created.',
+    login: {
+      email: user.email,
+      password: 'ChangeMe123!',
+    },
+  });
+});
 authRouter.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
