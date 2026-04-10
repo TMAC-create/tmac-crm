@@ -440,3 +440,40 @@ dd { margin: 0; font-weight: 600; }
   background: #f3f4f6;
   color: #1f2937;
 }
+.clients-layout {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: rgba(76, 29, 149, 0.04);
+}
+
+.selected-row {
+  background: rgba(76, 29, 149, 0.08);
+}
+
+.muted-text {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.success {
+  color: #166534;
+}
+
+.inline-success {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 1200px) {
+  .clients-layout {
+    grid-template-columns: 1fr;
+  }
+}
