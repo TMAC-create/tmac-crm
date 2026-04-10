@@ -33,20 +33,10 @@ const clientSchema = z.object({
   status: statusEnum.optional(),
 });
 
-const updateClientSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email().optional().or(z.literal('')),
-  mobile: z.string().optional(),
-  dob: z.string().optional().or(z.literal('')),
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  county: z.string().optional(),
-  postcode: z.string().optional(),
-  source: z.string().optional(),
-  campaign: z.string().optional(),
-  status: statusEnum.optional(),
+const updateClientSchema = clientSchema;
+
+const noteSchema = z.object({
+  body: z.string().min(1),
 });
 
 clientsRouter.use(requireAuth);
@@ -65,7 +55,10 @@ clientsRouter.get('/:id', async (req, res) => {
     where: { id: req.params.id },
     include: {
       assignedUser: true,
-      notes: { orderBy: { createdAt: 'desc' } },
+      notes: {
+        orderBy: { createdAt: 'desc' },
+        include: { user: true },
+      },
       tasks: { orderBy: { createdAt: 'desc' } },
       activities: { orderBy: { createdAt: 'desc' } },
     },
@@ -163,6 +156,43 @@ clientsRouter.patch('/:id', async (req, res) => {
   });
 
   res.json(updated);
+});
+
+clientsRouter.post('/:id/notes', async (req, res) => {
+  const parsed = noteSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Invalid note payload.',
+      issues: parsed.error.flatten(),
+    });
+  }
+
+  const existing = await prisma.client.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const note = await prisma.note.create({
+    data: {
+      clientId: req.params.id,
+      body: parsed.data.body,
+      sourceType: 'internal',
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      clientId: req.params.id,
+      type: 'note_added',
+      description: 'A note was added to the client record.',
+    },
+  });
+
+  res.status(201).json(note);
 });
 
 clientsRouter.delete('/:id', async (req, res) => {
