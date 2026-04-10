@@ -435,3 +435,8 @@ dd { margin: 0; font-weight: 600; }
 }
   .grid-2 { grid-template-columns: 1fr; }
 }
+.logout-item {
+  margin-top: 12px;
+  background: #f3f4f6;
+  color: #1f2937;
+}
