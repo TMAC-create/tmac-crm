@@ -439,34 +439,18 @@ export default function App() {
     );
   }
 
-  function renderTimeline() {
-    if (!selectedClient) return null;
+ function renderTimeline() {
+  if (!selectedClient) return null;
 
-    const noteItems = (selectedClient.notes || []).map((note) => ({
-      id: `note-${note.id}`,
-      kind: 'note',
-      title: 'Internal note',
-      body: note.body,
-      createdAt: note.createdAt,
-    }));
+  const notes = selectedClient.notes || [];
+  const activities = selectedClient.activities || [];
 
-    const activityItems = (selectedClient.activities || []).map((activity) => ({
-      id: `activity-${activity.id}`,
-      kind: 'activity',
-      title: activity.type.replaceAll('_', ' '),
-      body: activity.description,
-      createdAt: activity.createdAt,
-    }));
-
-    const combined = [...noteItems, ...activityItems].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    return (
+  return (
+    <>
       <section className="card timeline-panel">
         <div className="table-header">
-          <h3>Notes & Activity</h3>
-          <span>{combined.length} entries</span>
+          <h3>Notes</h3>
+          <span>{notes.length} entries</span>
         </div>
 
         <div className="note-entry-box">
@@ -485,26 +469,53 @@ export default function App() {
         </div>
 
         <div className="timeline-list">
-          {combined.length === 0 ? (
-            <p className="muted-text">No notes or activity yet.</p>
+          {notes.length === 0 ? (
+            <p className="muted-text">No notes yet.</p>
           ) : (
-            combined.map((item) => (
-              <div key={item.id} className={`timeline-item ${item.kind}`}>
+            notes.map((note) => (
+              <div key={note.id} className="timeline-item note">
                 <div className="timeline-dot" />
                 <div className="timeline-content">
                   <div className="timeline-head">
-                    <strong>{item.title}</strong>
-                    <span>{formatDateTime(item.createdAt)}</span>
+                    <strong>Internal note</strong>
+                    <span>{formatDateTime(note.createdAt)}</span>
                   </div>
-                  <p>{item.body}</p>
+                  <p>{note.body}</p>
                 </div>
               </div>
             ))
           )}
         </div>
       </section>
-    );
-  }
+
+      <section className="card timeline-panel">
+        <div className="table-header">
+          <h3>Activity</h3>
+          <span>{activities.length} entries</span>
+        </div>
+
+        <div className="timeline-list">
+          {activities.length === 0 ? (
+            <p className="muted-text">No activity yet.</p>
+          ) : (
+            activities.map((activity) => (
+              <div key={activity.id} className="timeline-item activity">
+                <div className="timeline-dot" />
+                <div className="timeline-content">
+                  <div className="timeline-head">
+                    <strong>{activity.type.replaceAll('_', ' ')}</strong>
+                    <span>{formatDateTime(activity.createdAt)}</span>
+                  </div>
+                  <p>{activity.description}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
 
   function renderClientEditPanel() {
     if (!selectedClient) {
