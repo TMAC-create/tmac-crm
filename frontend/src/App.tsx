@@ -251,52 +251,141 @@ export default function App() {
     return new Date(value).toLocaleDateString('en-GB');
   }
 
-  function renderDashboard() {
-    return (
-      <>
-        <header className="page-header">
-          <div>
-            <h2>Dashboard</h2>
-            <p>Multi-user CRM foundation for TMAC teams across offices.</p>
-          </div>
-          <div className="header-actions">
-            <button className="secondary" onClick={() => loadClients()}>
-              Refresh data
-            </button>
-            <button
-              className="primary"
-              onClick={() => {
-                setShowAddClient(true);
-                setSelectedClientId(null);
-                setView('clients');
-              }}
-            >
-              Add client
-            </button>
-          </div>
-        </header>
+function renderDashboard() {
+  const now = new Date();
 
-        <section className="stats-grid">
-          <div className="card stat-card">
-            <span>Total clients</span>
-            <strong>{clients.length}</strong>
+  const todayCount = clients.filter((client) => {
+    const d = new Date(client.createdAt);
+    return d.toDateString() === now.toDateString();
+  }).length;
+
+  const thisMonthCount = clients.filter((client) => {
+    const d = new Date(client.createdAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+
+  const thisYearCount = clients.filter((client) => {
+    const d = new Date(client.createdAt);
+    return d.getFullYear() === now.getFullYear();
+  }).length;
+
+  const statusCounts = [
+    { label: 'New Leads', value: clients.filter((c) => c.status === 'NEW_LEAD').length },
+    { label: 'Contact Attempted', value: clients.filter((c) => c.status === 'CONTACT_ATTEMPTED').length },
+    { label: 'Qualified', value: clients.filter((c) => c.status === 'QUALIFIED').length },
+    { label: 'Docs Requested', value: clients.filter((c) => c.status === 'DOCS_REQUESTED').length },
+    { label: 'Docs Received', value: clients.filter((c) => c.status === 'DOCS_RECEIVED').length },
+    { label: 'Submitted', value: clients.filter((c) => c.status === 'SUBMITTED').length },
+    { label: 'Approved', value: clients.filter((c) => c.status === 'APPROVED').length },
+    { label: 'Completed', value: clients.filter((c) => c.status === 'COMPLETED').length },
+    { label: 'Lost', value: clients.filter((c) => c.status === 'LOST').length },
+  ];
+
+  return (
+    <>
+      <header className="page-header">
+        <div>
+          <h2>Dashboard</h2>
+          <p>Operational snapshot for TMAC CRM.</p>
+        </div>
+        <div className="header-actions">
+          <button className="secondary" onClick={() => loadClients()}>
+            Refresh data
+          </button>
+          <button
+            className="primary"
+            onClick={() => {
+              setShowAddClient(true);
+              setSelectedClientId(null);
+              setView('clients');
+            }}
+          >
+            Add client
+          </button>
+        </div>
+      </header>
+
+      <section className="stats-grid dashboard-top-grid">
+        <div className="card stat-card">
+          <span>Added today</span>
+          <strong>{todayCount}</strong>
+        </div>
+        <div className="card stat-card">
+          <span>Added this month</span>
+          <strong>{thisMonthCount}</strong>
+        </div>
+        <div className="card stat-card">
+          <span>Added this year</span>
+          <strong>{thisYearCount}</strong>
+        </div>
+        <div className="card stat-card">
+          <span>Total clients</span>
+          <strong>{clients.length}</strong>
+        </div>
+      </section>
+
+      <section className="dashboard-sections">
+        <section className="card dashboard-panel">
+          <div className="table-header">
+            <h3>Status snapshot</h3>
+            <span>{clients.length} total records</span>
           </div>
-          <div className="card stat-card">
-            <span>New leads</span>
-            <strong>{clients.filter((c) => c.status === 'NEW_LEAD').length}</strong>
-          </div>
-          <div className="card stat-card">
-            <span>Qualified</span>
-            <strong>{clients.filter((c) => c.status === 'QUALIFIED').length}</strong>
-          </div>
-          <div className="card stat-card">
-            <span>Submitted</span>
-            <strong>{clients.filter((c) => c.status === 'SUBMITTED').length}</strong>
+
+          <div className="status-grid">
+            {statusCounts.map((item) => (
+              <div key={item.label} className="status-box">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
           </div>
         </section>
-      </>
-    );
-  }
+
+        <section className="card dashboard-panel">
+          <div className="table-header">
+            <h3>Recent clients</h3>
+            <span>Latest activity</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>Date Added</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No clients yet.</td>
+                </tr>
+              ) : (
+                clients.slice(0, 8).map((client) => (
+                  <tr key={client.id}>
+                    <td>
+                      <strong>
+                        {client.firstName} {client.lastName}
+                      </strong>
+                    </td>
+                    <td>
+                      <span className="pill">{client.status.replaceAll('_', ' ')}</span>
+                    </td>
+                    <td>{client.email || '-'}</td>
+                    <td>{client.mobile || '-'}</td>
+                    <td>{formatDate(client.createdAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </section>
+      </section>
+    </>
+  );
+}
 
   function renderClientEditPanel() {
     if (!selectedClient) {
