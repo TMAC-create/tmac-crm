@@ -687,20 +687,11 @@ export default function App() {
                       }`}
                       onClick={() => openClient(client)}
                     >
-                      <td>
-                        <div className="client-name-cell">
-                          <strong>
-                            {client.firstName} {client.lastName}
-                          </strong>
-                          <span>
-                            {client.addressLine1 || client.city || client.county
-                              ? [client.addressLine1, client.city, client.county]
-                                  .filter(Boolean)
-                                  .join(', ')
-                              : '-'}
-                          </span>
-                        </div>
-                      </td>
+ <td>
+  <strong>
+    {client.firstName} {client.lastName}
+  </strong>
+</td>
                       <td>{client.email || '-'}</td>
                       <td>{client.mobile || '-'}</td>
                       <td>{client.postcode || '-'}</td>
