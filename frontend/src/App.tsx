@@ -25,7 +25,7 @@ type DashboardSummary = {
   statusCounts: { status: string; count: number }[];
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_URL = 'https://tmac-crm-api.onrender.com';
 
 const emptyForm = {
   firstName: '',
