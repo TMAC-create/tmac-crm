@@ -482,38 +482,52 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="nav">
-          <button
-            className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setView('dashboard')}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`nav-item ${view === 'clients' ? 'active' : ''}`}
-            onClick={() => setView('clients')}
-          >
-            Clients
-          </button>
-          <button
-            className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
-            onClick={() => setView('tasks')}
-          >
-            Tasks
-          </button>
-          <button
-            className={`nav-item ${view === 'reporting' ? 'active' : ''}`}
-            onClick={() => setView('reporting')}
-          >
-            Reporting
-          </button>
-          <button
-            className={`nav-item ${view === 'admin' ? 'active' : ''}`}
-            onClick={() => setView('admin')}
-          >
-            Admin
-          </button>
-        </nav>
+<nav className="nav">
+  <button
+    className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
+    onClick={() => setView('dashboard')}
+  >
+    Dashboard
+  </button>
+  <button
+    className={`nav-item ${view === 'clients' ? 'active' : ''}`}
+    onClick={() => setView('clients')}
+  >
+    Clients
+  </button>
+  <button
+    className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
+    onClick={() => setView('tasks')}
+  >
+    Tasks
+  </button>
+  <button
+    className={`nav-item ${view === 'reporting' ? 'active' : ''}`}
+    onClick={() => setView('reporting')}
+  >
+    Reporting
+  </button>
+  <button
+    className={`nav-item ${view === 'admin' ? 'active' : ''}`}
+    onClick={() => setView('admin')}
+  >
+    Admin
+  </button>
+
+  {isLoggedIn && (
+    <button
+      className="nav-item logout-item"
+      onClick={() => {
+        setToken('');
+        setClients([]);
+        setView('dashboard');
+        setError('');
+      }}
+    >
+      Log out
+    </button>
+  )}
+</nav>
       </aside>
 
       <main className="content">
