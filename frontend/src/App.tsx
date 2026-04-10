@@ -1,5 +1,18 @@
 import { useMemo, useState } from 'react';
 
+type Note = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
+type Activity = {
+  id: string;
+  type: string;
+  description: string;
+  createdAt: string;
+};
+
 type Client = {
   id: string;
   firstName: string;
@@ -16,6 +29,8 @@ type Client = {
   source?: string | null;
   campaign?: string | null;
   createdAt: string;
+  notes?: Note[];
+  activities?: Activity[];
 };
 
 type View = 'dashboard' | 'clients' | 'tasks' | 'reporting' | 'admin';
@@ -50,14 +65,11 @@ export default function App() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [clientForm, setClientForm] = useState(emptyClientForm);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [editForm, setEditForm] = useState(emptyClientForm);
+  const [newNote, setNewNote] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
-
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === selectedClientId) || null,
-    [clients, selectedClientId]
-  );
 
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -116,11 +128,24 @@ export default function App() {
     setClients(data);
 
     if (selectedClientId) {
-      const refreshedSelected = data.find((client: Client) => client.id === selectedClientId);
-      if (refreshedSelected) {
-        populateEditForm(refreshedSelected);
-      }
+      await loadClientDetail(selectedClientId, activeToken);
     }
+  }
+
+  async function loadClientDetail(id: string, activeToken = token) {
+    const response = await fetch(`${API_URL}/clients/${id}`, {
+      headers: { Authorization: `Bearer ${activeToken}` },
+    });
+
+    if (!response.ok) {
+      setError('Could not load client details.');
+      return;
+    }
+
+    const data = await response.json();
+    setSelectedClient(data);
+    setSelectedClientId(id);
+    populateEditForm(data);
   }
 
   function toDateInputValue(value?: string | null) {
@@ -146,12 +171,11 @@ export default function App() {
     });
   }
 
-  function openClient(client: Client) {
-    setSelectedClientId(client.id);
-    populateEditForm(client);
+  async function openClient(client: Client) {
     setShowAddClient(false);
     setSuccess('');
     setError('');
+    await loadClientDetail(client.id);
   }
 
   async function createClient() {
@@ -200,7 +224,33 @@ export default function App() {
     }
 
     await loadClients();
+    await loadClientDetail(selectedClientId);
     setSuccess('Client updated successfully.');
+  }
+
+  async function addNote() {
+    if (!selectedClientId || !newNote.trim()) return;
+
+    setError('');
+    setSuccess('');
+
+    const response = await fetch(`${API_URL}/clients/${selectedClientId}/notes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ body: newNote }),
+    });
+
+    if (!response.ok) {
+      setError('Could not add note.');
+      return;
+    }
+
+    setNewNote('');
+    await loadClientDetail(selectedClientId);
+    setSuccess('Note added successfully.');
   }
 
   async function deleteClient(id: string, fullName: string) {
@@ -221,6 +271,7 @@ export default function App() {
 
     if (selectedClientId === id) {
       setSelectedClientId(null);
+      setSelectedClient(null);
       setEditForm(emptyClientForm);
     }
 
@@ -246,146 +297,214 @@ export default function App() {
     return new Date(value).toLocaleDateString('en-GB');
   }
 
+  function formatDateTime(value: string) {
+    return new Date(value).toLocaleString('en-GB');
+  }
+
   function formatDob(value?: string | null) {
     if (!value) return 'Not set';
     return new Date(value).toLocaleDateString('en-GB');
   }
 
-function renderDashboard() {
-  const now = new Date();
+  function renderDashboard() {
+    const now = new Date();
 
-  const todayCount = clients.filter((client) => {
-    const d = new Date(client.createdAt);
-    return d.toDateString() === now.toDateString();
-  }).length;
+    const todayCount = clients.filter((client) => {
+      const d = new Date(client.createdAt);
+      return d.toDateString() === now.toDateString();
+    }).length;
 
-  const thisMonthCount = clients.filter((client) => {
-    const d = new Date(client.createdAt);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
+    const thisMonthCount = clients.filter((client) => {
+      const d = new Date(client.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
 
-  const thisYearCount = clients.filter((client) => {
-    const d = new Date(client.createdAt);
-    return d.getFullYear() === now.getFullYear();
-  }).length;
+    const thisYearCount = clients.filter((client) => {
+      const d = new Date(client.createdAt);
+      return d.getFullYear() === now.getFullYear();
+    }).length;
 
-  const statusCounts = [
-    { label: 'New Leads', value: clients.filter((c) => c.status === 'NEW_LEAD').length },
-    { label: 'Contact Attempted', value: clients.filter((c) => c.status === 'CONTACT_ATTEMPTED').length },
-    { label: 'Qualified', value: clients.filter((c) => c.status === 'QUALIFIED').length },
-    { label: 'Docs Requested', value: clients.filter((c) => c.status === 'DOCS_REQUESTED').length },
-    { label: 'Docs Received', value: clients.filter((c) => c.status === 'DOCS_RECEIVED').length },
-    { label: 'Submitted', value: clients.filter((c) => c.status === 'SUBMITTED').length },
-    { label: 'Approved', value: clients.filter((c) => c.status === 'APPROVED').length },
-    { label: 'Completed', value: clients.filter((c) => c.status === 'COMPLETED').length },
-    { label: 'Lost', value: clients.filter((c) => c.status === 'LOST').length },
-  ];
+    const statusCounts = [
+      { label: 'New Leads', value: clients.filter((c) => c.status === 'NEW_LEAD').length },
+      { label: 'Qualified', value: clients.filter((c) => c.status === 'QUALIFIED').length },
+      { label: 'Submitted', value: clients.filter((c) => c.status === 'SUBMITTED').length },
+      { label: 'Approved', value: clients.filter((c) => c.status === 'APPROVED').length },
+      { label: 'Completed', value: clients.filter((c) => c.status === 'COMPLETED').length },
+      { label: 'Lost', value: clients.filter((c) => c.status === 'LOST').length },
+    ];
 
-  return (
-    <>
-      <header className="page-header">
-        <div>
-          <h2>Dashboard</h2>
-          <p>Operational snapshot for TMAC CRM.</p>
-        </div>
-        <div className="header-actions">
-          <button className="secondary" onClick={() => loadClients()}>
-            Refresh data
-          </button>
-          <button
-            className="primary"
-            onClick={() => {
-              setShowAddClient(true);
-              setSelectedClientId(null);
-              setView('clients');
-            }}
-          >
-            Add client
-          </button>
-        </div>
-      </header>
-
-      <section className="stats-grid dashboard-top-grid">
-        <div className="card stat-card">
-          <span>Added today</span>
-          <strong>{todayCount}</strong>
-        </div>
-        <div className="card stat-card">
-          <span>Added this month</span>
-          <strong>{thisMonthCount}</strong>
-        </div>
-        <div className="card stat-card">
-          <span>Added this year</span>
-          <strong>{thisYearCount}</strong>
-        </div>
-        <div className="card stat-card">
-          <span>Total clients</span>
-          <strong>{clients.length}</strong>
-        </div>
-      </section>
-
-      <section className="dashboard-sections">
-        <section className="card dashboard-panel">
-          <div className="table-header">
-            <h3>Status snapshot</h3>
-            <span>{clients.length} total records</span>
+    return (
+      <>
+        <header className="page-header premium-header">
+          <div>
+            <div className="eyebrow">Management Information</div>
+            <h2>Dashboard</h2>
+            <p>Daily operational snapshot for TMAC CRM.</p>
           </div>
+          <div className="header-actions">
+            <button className="secondary" onClick={() => loadClients()}>
+              Refresh data
+            </button>
+            <button
+              className="primary"
+              onClick={() => {
+                setShowAddClient(true);
+                setSelectedClientId(null);
+                setSelectedClient(null);
+                setView('clients');
+              }}
+            >
+              Add client
+            </button>
+          </div>
+        </header>
 
-          <div className="status-grid">
-            {statusCounts.map((item) => (
-              <div key={item.label} className="status-box">
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
+        <section className="hero-mi-grid">
+          <div className="hero-mi-card">
+            <span>Added today</span>
+            <strong>{todayCount}</strong>
+          </div>
+          <div className="hero-mi-card">
+            <span>Added this month</span>
+            <strong>{thisMonthCount}</strong>
+          </div>
+          <div className="hero-mi-card">
+            <span>Added this year</span>
+            <strong>{thisYearCount}</strong>
+          </div>
+          <div className="hero-mi-card accent">
+            <span>Total clients</span>
+            <strong>{clients.length}</strong>
           </div>
         </section>
 
-        <section className="card dashboard-panel">
-          <div className="table-header">
-            <h3>Recent clients</h3>
-            <span>Latest activity</span>
-          </div>
+        <section className="dashboard-premium-grid">
+          <section className="card dashboard-panel premium-panel">
+            <div className="table-header">
+              <h3>Status snapshot</h3>
+              <span>Pipeline overview</span>
+            </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Date Added</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.length === 0 ? (
+            <div className="status-grid premium-status-grid">
+              {statusCounts.map((item) => (
+                <div key={item.label} className="status-box premium-status-box">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="card dashboard-panel premium-panel">
+            <div className="table-header">
+              <h3>Recent clients</h3>
+              <span>Latest additions</span>
+            </div>
+
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={5}>No clients yet.</td>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Email</th>
+                  <th>Date Added</th>
                 </tr>
-              ) : (
-                clients.slice(0, 8).map((client) => (
-                  <tr key={client.id}>
-                    <td>
-                      <strong>
-                        {client.firstName} {client.lastName}
-                      </strong>
-                    </td>
-                    <td>
-                      <span className="pill">{client.status.replaceAll('_', ' ')}</span>
-                    </td>
-                    <td>{client.email || '-'}</td>
-                    <td>{client.mobile || '-'}</td>
-                    <td>{formatDate(client.createdAt)}</td>
+              </thead>
+              <tbody>
+                {clients.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>No clients yet.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  clients.slice(0, 8).map((client) => (
+                    <tr key={client.id}>
+                      <td>
+                        <strong>
+                          {client.firstName} {client.lastName}
+                        </strong>
+                      </td>
+                      <td>
+                        <span className="pill">{client.status.replaceAll('_', ' ')}</span>
+                      </td>
+                      <td>{client.email || '-'}</td>
+                      <td>{formatDate(client.createdAt)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
         </section>
+      </>
+    );
+  }
+
+  function renderTimeline() {
+    if (!selectedClient) return null;
+
+    const noteItems = (selectedClient.notes || []).map((note) => ({
+      id: `note-${note.id}`,
+      kind: 'note',
+      title: 'Internal note',
+      body: note.body,
+      createdAt: note.createdAt,
+    }));
+
+    const activityItems = (selectedClient.activities || []).map((activity) => ({
+      id: `activity-${activity.id}`,
+      kind: 'activity',
+      title: activity.type.replaceAll('_', ' '),
+      body: activity.description,
+      createdAt: activity.createdAt,
+    }));
+
+    const combined = [...noteItems, ...activityItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return (
+      <section className="card timeline-panel">
+        <div className="table-header">
+          <h3>Notes & Activity</h3>
+          <span>{combined.length} entries</span>
+        </div>
+
+        <div className="note-entry-box">
+          <label>Add note</label>
+          <textarea
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            placeholder="Add a note to the client record"
+            rows={4}
+          />
+          <div className="form-actions">
+            <button className="primary" onClick={addNote}>
+              Save note
+            </button>
+          </div>
+        </div>
+
+        <div className="timeline-list">
+          {combined.length === 0 ? (
+            <p className="muted-text">No notes or activity yet.</p>
+          ) : (
+            combined.map((item) => (
+              <div key={item.id} className={`timeline-item ${item.kind}`}>
+                <div className="timeline-dot" />
+                <div className="timeline-content">
+                  <div className="timeline-head">
+                    <strong>{item.title}</strong>
+                    <span>{formatDateTime(item.createdAt)}</span>
+                  </div>
+                  <p>{item.body}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </section>
-    </>
-  );
-}
+    );
+  }
 
   function renderClientEditPanel() {
     if (!selectedClient) {
@@ -398,191 +517,204 @@ function renderDashboard() {
     }
 
     return (
-      <section className="card form-card polished-panel">
-        <div className="client-header">
-          <div>
-            <div className="client-title-row">
-              <h3>
-                {selectedClient.firstName} {selectedClient.lastName}
-              </h3>
-              <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
+      <>
+        <section className="card form-card polished-panel">
+          <div className="client-header premium-client-header">
+            <div>
+              <div className="client-title-row">
+                <h3>
+                  {selectedClient.firstName} {selectedClient.lastName}
+                </h3>
+                <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
+              </div>
+
+              <div className="client-meta-grid">
+                <div>
+                  <span className="meta-label">Date added</span>
+                  <strong>{formatDate(selectedClient.createdAt)}</strong>
+                </div>
+                <div>
+                  <span className="meta-label">Date of birth</span>
+                  <strong>{formatDob(selectedClient.dob)}</strong>
+                </div>
+                <div>
+                  <span className="meta-label">Email</span>
+                  <strong>{selectedClient.email || '-'}</strong>
+                </div>
+                <div>
+                  <span className="meta-label">Mobile</span>
+                  <strong>{selectedClient.mobile || '-'}</strong>
+                </div>
+              </div>
             </div>
 
-            <div className="client-meta-grid">
-              <div>
-                <span className="meta-label">Date added</span>
-                <strong>{formatDate(selectedClient.createdAt)}</strong>
-              </div>
-              <div>
-                <span className="meta-label">Date of birth</span>
-                <strong>{formatDob(selectedClient.dob)}</strong>
-              </div>
+            <div className="client-header-actions">
+              <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
+                Reset
+              </button>
+              <button className="primary" onClick={saveClientChanges}>
+                Save changes
+              </button>
+              <button
+                className="danger-button"
+                onClick={() =>
+                  deleteClient(
+                    selectedClient.id,
+                    `${selectedClient.firstName} ${selectedClient.lastName}`
+                  )
+                }
+              >
+                Delete
+              </button>
             </div>
           </div>
 
-          <div className="client-header-actions">
-            <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
-              Reset
-            </button>
-            <button className="primary" onClick={saveClientChanges}>
-              Save changes
-            </button>
-            <button
-              className="danger-button"
-              onClick={() =>
-                deleteClient(
-                  selectedClient.id,
-                  `${selectedClient.firstName} ${selectedClient.lastName}`
-                )
-              }
-            >
-              Delete
-            </button>
+          <div className="detail-sections">
+            <section className="detail-section">
+              <h4>Personal details</h4>
+              <div className="form-grid">
+                <div>
+                  <label>First name</label>
+                  <input
+                    value={editForm.firstName}
+                    onChange={(e) => updateEditForm('firstName', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Last name</label>
+                  <input
+                    value={editForm.lastName}
+                    onChange={(e) => updateEditForm('lastName', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Email</label>
+                  <input
+                    value={editForm.email}
+                    onChange={(e) => updateEditForm('email', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Mobile</label>
+                  <input
+                    value={editForm.mobile}
+                    onChange={(e) => updateEditForm('mobile', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Date of birth</label>
+                  <input
+                    type="date"
+                    value={editForm.dob}
+                    onChange={(e) => updateEditForm('dob', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Status</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => updateEditForm('status', e.target.value)}
+                  >
+                    <option value="NEW_LEAD">New Lead</option>
+                    <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                    <option value="QUALIFIED">Qualified</option>
+                    <option value="DOCS_REQUESTED">Docs Requested</option>
+                    <option value="DOCS_RECEIVED">Docs Received</option>
+                    <option value="SUBMITTED">Submitted</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="LOST">Lost</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="detail-section">
+              <h4>Address</h4>
+              <div className="form-grid">
+                <div className="full-width">
+                  <label>Address line 1</label>
+                  <input
+                    value={editForm.addressLine1}
+                    onChange={(e) => updateEditForm('addressLine1', e.target.value)}
+                  />
+                </div>
+
+                <div className="full-width">
+                  <label>Address line 2</label>
+                  <input
+                    value={editForm.addressLine2}
+                    onChange={(e) => updateEditForm('addressLine2', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>City / Town</label>
+                  <input
+                    value={editForm.city}
+                    onChange={(e) => updateEditForm('city', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>County</label>
+                  <input
+                    value={editForm.county}
+                    onChange={(e) => updateEditForm('county', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Postcode</label>
+                  <input
+                    value={editForm.postcode}
+                    onChange={(e) => updateEditForm('postcode', e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="detail-section">
+              <h4>Case details</h4>
+              <div className="form-grid">
+                <div>
+                  <label>Source</label>
+                  <input
+                    value={editForm.source}
+                    onChange={(e) => updateEditForm('source', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label>Campaign</label>
+                  <input
+                    value={editForm.campaign}
+                    onChange={(e) => updateEditForm('campaign', e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-        </div>
+        </section>
 
-        <div className="detail-sections">
-          <section className="detail-section">
-            <h4>Personal details</h4>
-            <div className="form-grid">
-              <div>
-                <label>First name</label>
-                <input
-                  value={editForm.firstName}
-                  onChange={(e) => updateEditForm('firstName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Last name</label>
-                <input
-                  value={editForm.lastName}
-                  onChange={(e) => updateEditForm('lastName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Email</label>
-                <input
-                  value={editForm.email}
-                  onChange={(e) => updateEditForm('email', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Mobile</label>
-                <input
-                  value={editForm.mobile}
-                  onChange={(e) => updateEditForm('mobile', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Date of birth</label>
-                <input
-                  type="date"
-                  value={editForm.dob}
-                  onChange={(e) => updateEditForm('dob', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Status</label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => updateEditForm('status', e.target.value)}
-                >
-                  <option value="NEW_LEAD">New Lead</option>
-                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                  <option value="QUALIFIED">Qualified</option>
-                  <option value="DOCS_REQUESTED">Docs Requested</option>
-                  <option value="DOCS_RECEIVED">Docs Received</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="LOST">Lost</option>
-                </select>
-              </div>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <h4>Address</h4>
-            <div className="form-grid">
-              <div className="full-width">
-                <label>Address line 1</label>
-                <input
-                  value={editForm.addressLine1}
-                  onChange={(e) => updateEditForm('addressLine1', e.target.value)}
-                />
-              </div>
-
-              <div className="full-width">
-                <label>Address line 2</label>
-                <input
-                  value={editForm.addressLine2}
-                  onChange={(e) => updateEditForm('addressLine2', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>City / Town</label>
-                <input
-                  value={editForm.city}
-                  onChange={(e) => updateEditForm('city', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>County</label>
-                <input
-                  value={editForm.county}
-                  onChange={(e) => updateEditForm('county', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Postcode</label>
-                <input
-                  value={editForm.postcode}
-                  onChange={(e) => updateEditForm('postcode', e.target.value)}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <h4>Case details</h4>
-            <div className="form-grid">
-              <div>
-                <label>Source</label>
-                <input
-                  value={editForm.source}
-                  onChange={(e) => updateEditForm('source', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Campaign</label>
-                <input
-                  value={editForm.campaign}
-                  onChange={(e) => updateEditForm('campaign', e.target.value)}
-                />
-              </div>
-            </div>
-          </section>
-        </div>
-      </section>
+        {renderTimeline()}
+      </>
     );
   }
 
   function renderClients() {
     return (
       <>
-        <header className="page-header">
+        <header className="page-header premium-header">
           <div>
+            <div className="eyebrow">Client Management</div>
             <h2>Clients</h2>
-            <p>View, add, edit and delete client records.</p>
+            <p>View, edit and track client records.</p>
           </div>
           <div className="header-actions">
             <button className="secondary" onClick={() => loadClients()}>
@@ -593,6 +725,7 @@ function renderDashboard() {
               onClick={() => {
                 setShowAddClient((prev) => !prev);
                 setSelectedClientId(null);
+                setSelectedClient(null);
                 setSuccess('');
                 setError('');
               }}
@@ -603,7 +736,7 @@ function renderDashboard() {
         </header>
 
         {showAddClient && (
-          <section className="card form-card">
+          <section className="card form-card premium-panel">
             <div className="table-header">
               <h3>Add client</h3>
             </div>
@@ -736,8 +869,8 @@ function renderDashboard() {
           </section>
         )}
 
-        <section className="clients-layout">
-          <section className="card table-card">
+        <section className="clients-layout premium-clients-layout">
+          <section className="card table-card premium-panel">
             <div className="table-header">
               <h3>Client list</h3>
               <div className="table-tools">
@@ -776,11 +909,11 @@ function renderDashboard() {
                       }`}
                       onClick={() => openClient(client)}
                     >
- <td>
-  <strong>
-    {client.firstName} {client.lastName}
-  </strong>
-</td>
+                      <td>
+                        <strong>
+                          {client.firstName} {client.lastName}
+                        </strong>
+                      </td>
                       <td>{client.email || '-'}</td>
                       <td>{client.mobile || '-'}</td>
                       <td>{client.postcode || '-'}</td>
@@ -795,7 +928,7 @@ function renderDashboard() {
             </table>
           </section>
 
-          {renderClientEditPanel()}
+          <div className="client-right-column">{renderClientEditPanel()}</div>
         </section>
       </>
     );
@@ -803,7 +936,7 @@ function renderDashboard() {
 
   function renderPlaceholder(title: string) {
     return (
-      <section className="card placeholder-card">
+      <section className="card placeholder-card premium-panel">
         <h2>{title}</h2>
         <p>This section is next to be built out.</p>
       </section>
@@ -860,6 +993,7 @@ function renderDashboard() {
                 setToken('');
                 setClients([]);
                 setSelectedClientId(null);
+                setSelectedClient(null);
                 setView('dashboard');
                 setError('');
                 setSuccess('');
@@ -873,7 +1007,7 @@ function renderDashboard() {
 
       <main className="content">
         {!isLoggedIn ? (
-          <section className="card login-card">
+          <section className="card login-card premium-panel">
             <h2>Secure Login</h2>
             <p>Sign in to TMAC CRM</p>
             <label>Email</label>
