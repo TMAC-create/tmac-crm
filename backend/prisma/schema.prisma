@@ -74,6 +74,7 @@ model Client {
   addressLine1   String?
   addressLine2   String?
   city           String?
+  county         String?
   postcode       String?
   source         String?
   campaign       String?
@@ -90,12 +91,6 @@ model Client {
   documents      Document[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-
-  @@index([email])
-  @@index([mobile])
-  @@index([externalId])
-  @@index([status])
-}
 
 model Note {
   id         String   @id @default(cuid())
