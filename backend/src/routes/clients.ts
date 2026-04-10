@@ -32,6 +32,21 @@ const clientSchema = z.object({
   status: statusEnum.optional(),
 });
 
+const updateClientSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email().optional().or(z.literal('')),
+  mobile: z.string().optional(),
+  addressLine1: z.string().optional(),
+  addressLine2: z.string().optional(),
+  city: z.string().optional(),
+  county: z.string().optional(),
+  postcode: z.string().optional(),
+  source: z.string().optional(),
+  campaign: z.string().optional(),
+  status: statusEnum.optional(),
+});
+
 clientsRouter.use(requireAuth);
 
 clientsRouter.get('/', async (_req, res) => {
@@ -97,6 +112,53 @@ clientsRouter.post('/', async (req, res) => {
   });
 
   res.status(201).json(client);
+});
+
+clientsRouter.patch('/:id', async (req, res) => {
+  const parsed = updateClientSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Invalid client update payload.',
+      issues: parsed.error.flatten(),
+    });
+  }
+
+  const existing = await prisma.client.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const updated = await prisma.client.update({
+    where: { id: req.params.id },
+    data: {
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName,
+      email: parsed.data.email || null,
+      mobile: parsed.data.mobile || null,
+      addressLine1: parsed.data.addressLine1 || null,
+      addressLine2: parsed.data.addressLine2 || null,
+      city: parsed.data.city || null,
+      county: parsed.data.county || null,
+      postcode: parsed.data.postcode || null,
+      source: parsed.data.source || null,
+      campaign: parsed.data.campaign || null,
+      status: parsed.data.status || 'NEW_LEAD',
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      clientId: updated.id,
+      type: 'client_updated',
+      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
+    },
+  });
+
+  res.json(updated);
 });
 
 clientsRouter.delete('/:id', async (req, res) => {
