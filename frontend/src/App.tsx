@@ -6,6 +6,7 @@ type Client = {
   lastName: string;
   email?: string | null;
   mobile?: string | null;
+  dob?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;
@@ -26,6 +27,7 @@ const emptyClientForm = {
   lastName: '',
   email: '',
   mobile: '',
+  dob: '',
   addressLine1: '',
   addressLine2: '',
   city: '',
@@ -121,12 +123,18 @@ export default function App() {
     }
   }
 
+  function toDateInputValue(value?: string | null) {
+    if (!value) return '';
+    return new Date(value).toISOString().split('T')[0];
+  }
+
   function populateEditForm(client: Client) {
     setEditForm({
       firstName: client.firstName || '',
       lastName: client.lastName || '',
       email: client.email || '',
       mobile: client.mobile || '',
+      dob: toDateInputValue(client.dob),
       addressLine1: client.addressLine1 || '',
       addressLine2: client.addressLine2 || '',
       city: client.city || '',
@@ -238,6 +246,11 @@ export default function App() {
     return new Date(value).toLocaleDateString('en-GB');
   }
 
+  function formatDob(value?: string | null) {
+    if (!value) return 'Not set';
+    return new Date(value).toLocaleDateString('en-GB');
+  }
+
   function renderDashboard() {
     return (
       <>
@@ -288,7 +301,7 @@ export default function App() {
   function renderClientEditPanel() {
     if (!selectedClient) {
       return (
-        <section className="card form-card">
+        <section className="card form-card polished-panel">
           <h3>Client details</h3>
           <p>Select a client from the list to view and amend their record.</p>
         </section>
@@ -296,142 +309,179 @@ export default function App() {
     }
 
     return (
-      <section className="card form-card">
-        <div className="table-header">
+      <section className="card form-card polished-panel">
+        <div className="client-header">
           <div>
-            <h3>
-              {selectedClient.firstName} {selectedClient.lastName}
-            </h3>
-            <p className="muted-text">Date added: {formatDate(selectedClient.createdAt)}</p>
-          </div>
-          <button
-            className="danger-button"
-            onClick={() =>
-              deleteClient(
-                selectedClient.id,
-                `${selectedClient.firstName} ${selectedClient.lastName}`
-              )
-            }
-          >
-            Delete client
-          </button>
-        </div>
+            <div className="client-title-row">
+              <h3>
+                {selectedClient.firstName} {selectedClient.lastName}
+              </h3>
+              <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
+            </div>
 
-        <div className="form-grid">
-          <div>
-            <label>First name</label>
-            <input
-              value={editForm.firstName}
-              onChange={(e) => updateEditForm('firstName', e.target.value)}
-            />
+            <div className="client-meta-grid">
+              <div>
+                <span className="meta-label">Date added</span>
+                <strong>{formatDate(selectedClient.createdAt)}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Date of birth</span>
+                <strong>{formatDob(selectedClient.dob)}</strong>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>Last name</label>
-            <input
-              value={editForm.lastName}
-              onChange={(e) => updateEditForm('lastName', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>Email</label>
-            <input
-              value={editForm.email}
-              onChange={(e) => updateEditForm('email', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>Mobile</label>
-            <input
-              value={editForm.mobile}
-              onChange={(e) => updateEditForm('mobile', e.target.value)}
-            />
-          </div>
-
-          <div className="full-width">
-            <label>Address line 1</label>
-            <input
-              value={editForm.addressLine1}
-              onChange={(e) => updateEditForm('addressLine1', e.target.value)}
-            />
-          </div>
-
-          <div className="full-width">
-            <label>Address line 2</label>
-            <input
-              value={editForm.addressLine2}
-              onChange={(e) => updateEditForm('addressLine2', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>City / Town</label>
-            <input
-              value={editForm.city}
-              onChange={(e) => updateEditForm('city', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>County</label>
-            <input
-              value={editForm.county}
-              onChange={(e) => updateEditForm('county', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>Postcode</label>
-            <input
-              value={editForm.postcode}
-              onChange={(e) => updateEditForm('postcode', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>Status</label>
-            <select
-              value={editForm.status}
-              onChange={(e) => updateEditForm('status', e.target.value)}
+          <div className="client-header-actions">
+            <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
+              Reset
+            </button>
+            <button className="primary" onClick={saveClientChanges}>
+              Save changes
+            </button>
+            <button
+              className="danger-button"
+              onClick={() =>
+                deleteClient(
+                  selectedClient.id,
+                  `${selectedClient.firstName} ${selectedClient.lastName}`
+                )
+              }
             >
-              <option value="NEW_LEAD">New Lead</option>
-              <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-              <option value="QUALIFIED">Qualified</option>
-              <option value="DOCS_REQUESTED">Docs Requested</option>
-              <option value="DOCS_RECEIVED">Docs Received</option>
-              <option value="SUBMITTED">Submitted</option>
-              <option value="APPROVED">Approved</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="LOST">Lost</option>
-            </select>
-          </div>
-
-          <div>
-            <label>Source</label>
-            <input
-              value={editForm.source}
-              onChange={(e) => updateEditForm('source', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label>Campaign</label>
-            <input
-              value={editForm.campaign}
-              onChange={(e) => updateEditForm('campaign', e.target.value)}
-            />
+              Delete
+            </button>
           </div>
         </div>
 
-        <div className="form-actions">
-          <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
-            Reset changes
-          </button>
-          <button className="primary" onClick={saveClientChanges}>
-            Save changes
-          </button>
+        <div className="detail-sections">
+          <section className="detail-section">
+            <h4>Personal details</h4>
+            <div className="form-grid">
+              <div>
+                <label>First name</label>
+                <input
+                  value={editForm.firstName}
+                  onChange={(e) => updateEditForm('firstName', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Last name</label>
+                <input
+                  value={editForm.lastName}
+                  onChange={(e) => updateEditForm('lastName', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Email</label>
+                <input
+                  value={editForm.email}
+                  onChange={(e) => updateEditForm('email', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Mobile</label>
+                <input
+                  value={editForm.mobile}
+                  onChange={(e) => updateEditForm('mobile', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Date of birth</label>
+                <input
+                  type="date"
+                  value={editForm.dob}
+                  onChange={(e) => updateEditForm('dob', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => updateEditForm('status', e.target.value)}
+                >
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Address</h4>
+            <div className="form-grid">
+              <div className="full-width">
+                <label>Address line 1</label>
+                <input
+                  value={editForm.addressLine1}
+                  onChange={(e) => updateEditForm('addressLine1', e.target.value)}
+                />
+              </div>
+
+              <div className="full-width">
+                <label>Address line 2</label>
+                <input
+                  value={editForm.addressLine2}
+                  onChange={(e) => updateEditForm('addressLine2', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>City / Town</label>
+                <input
+                  value={editForm.city}
+                  onChange={(e) => updateEditForm('city', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>County</label>
+                <input
+                  value={editForm.county}
+                  onChange={(e) => updateEditForm('county', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Postcode</label>
+                <input
+                  value={editForm.postcode}
+                  onChange={(e) => updateEditForm('postcode', e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Case details</h4>
+            <div className="form-grid">
+              <div>
+                <label>Source</label>
+                <input
+                  value={editForm.source}
+                  onChange={(e) => updateEditForm('source', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Campaign</label>
+                <input
+                  value={editForm.campaign}
+                  onChange={(e) => updateEditForm('campaign', e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     );
@@ -502,6 +552,33 @@ export default function App() {
                 />
               </div>
 
+              <div>
+                <label>Date of birth</label>
+                <input
+                  type="date"
+                  value={clientForm.dob}
+                  onChange={(e) => updateClientForm('dob', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label>Status</label>
+                <select
+                  value={clientForm.status}
+                  onChange={(e) => updateClientForm('status', e.target.value)}
+                >
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
+              </div>
+
               <div className="full-width">
                 <label>Address line 1</label>
                 <input
@@ -540,24 +617,6 @@ export default function App() {
                   value={clientForm.postcode}
                   onChange={(e) => updateClientForm('postcode', e.target.value)}
                 />
-              </div>
-
-              <div>
-                <label>Status</label>
-                <select
-                  value={clientForm.status}
-                  onChange={(e) => updateClientForm('status', e.target.value)}
-                >
-                  <option value="NEW_LEAD">New Lead</option>
-                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                  <option value="QUALIFIED">Qualified</option>
-                  <option value="DOCS_REQUESTED">Docs Requested</option>
-                  <option value="DOCS_RECEIVED">Docs Received</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="LOST">Lost</option>
-                </select>
               </div>
 
               <div>
