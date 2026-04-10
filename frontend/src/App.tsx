@@ -42,12 +42,20 @@ export default function App() {
   const [password, setPassword] = useState('ChangeMe123!');
   const [clients, setClients] = useState<Client[]>([]);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [view, setView] = useState<View>('dashboard');
   const [search, setSearch] = useState('');
   const [showAddClient, setShowAddClient] = useState(false);
   const [clientForm, setClientForm] = useState(emptyClientForm);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(emptyClientForm);
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
+
+  const selectedClient = useMemo(
+    () => clients.find((client) => client.id === selectedClientId) || null,
+    [clients, selectedClientId]
+  );
 
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -73,6 +81,7 @@ export default function App() {
 
   async function login() {
     setError('');
+    setSuccess('');
 
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -103,10 +112,43 @@ export default function App() {
 
     const data = await response.json();
     setClients(data);
+
+    if (selectedClientId) {
+      const refreshedSelected = data.find((client: Client) => client.id === selectedClientId);
+      if (refreshedSelected) {
+        populateEditForm(refreshedSelected);
+      }
+    }
+  }
+
+  function populateEditForm(client: Client) {
+    setEditForm({
+      firstName: client.firstName || '',
+      lastName: client.lastName || '',
+      email: client.email || '',
+      mobile: client.mobile || '',
+      addressLine1: client.addressLine1 || '',
+      addressLine2: client.addressLine2 || '',
+      city: client.city || '',
+      county: client.county || '',
+      postcode: client.postcode || '',
+      source: client.source || '',
+      campaign: client.campaign || '',
+      status: client.status || 'NEW_LEAD',
+    });
+  }
+
+  function openClient(client: Client) {
+    setSelectedClientId(client.id);
+    populateEditForm(client);
+    setShowAddClient(false);
+    setSuccess('');
+    setError('');
   }
 
   async function createClient() {
     setError('');
+    setSuccess('');
 
     const response = await fetch(`${API_URL}/clients`, {
       method: 'POST',
@@ -126,6 +168,31 @@ export default function App() {
     setShowAddClient(false);
     await loadClients();
     setView('clients');
+    setSuccess('Client created successfully.');
+  }
+
+  async function saveClientChanges() {
+    if (!selectedClientId) return;
+
+    setError('');
+    setSuccess('');
+
+    const response = await fetch(`${API_URL}/clients/${selectedClientId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(editForm),
+    });
+
+    if (!response.ok) {
+      setError('Could not update client.');
+      return;
+    }
+
+    await loadClients();
+    setSuccess('Client updated successfully.');
   }
 
   async function deleteClient(id: string, fullName: string) {
@@ -144,11 +211,24 @@ export default function App() {
       return;
     }
 
+    if (selectedClientId === id) {
+      setSelectedClientId(null);
+      setEditForm(emptyClientForm);
+    }
+
     await loadClients();
+    setSuccess('Client deleted successfully.');
   }
 
   function updateClientForm(field: keyof typeof emptyClientForm, value: string) {
     setClientForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  function updateEditForm(field: keyof typeof emptyClientForm, value: string) {
+    setEditForm((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -174,6 +254,7 @@ export default function App() {
               className="primary"
               onClick={() => {
                 setShowAddClient(true);
+                setSelectedClientId(null);
                 setView('clients');
               }}
             >
@@ -200,46 +281,159 @@ export default function App() {
             <strong>{clients.filter((c) => c.status === 'SUBMITTED').length}</strong>
           </div>
         </section>
-
-        <section className="card table-card">
-          <div className="table-header">
-            <h3>Recent clients</h3>
-            <span>{clients.length} records</span>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Postcode</th>
-                <th>Date Added</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>No clients yet.</td>
-                </tr>
-              ) : (
-                clients.slice(0, 8).map((client) => (
-                  <tr key={client.id}>
-                    <td>{client.firstName} {client.lastName}</td>
-                    <td>
-                      <span className="pill">{client.status.replaceAll('_', ' ')}</span>
-                    </td>
-                    <td>{client.email || '-'}</td>
-                    <td>{client.mobile || '-'}</td>
-                    <td>{client.postcode || '-'}</td>
-                    <td>{formatDate(client.createdAt)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
       </>
+    );
+  }
+
+  function renderClientEditPanel() {
+    if (!selectedClient) {
+      return (
+        <section className="card form-card">
+          <h3>Client details</h3>
+          <p>Select a client from the list to view and amend their record.</p>
+        </section>
+      );
+    }
+
+    return (
+      <section className="card form-card">
+        <div className="table-header">
+          <div>
+            <h3>
+              {selectedClient.firstName} {selectedClient.lastName}
+            </h3>
+            <p className="muted-text">Date added: {formatDate(selectedClient.createdAt)}</p>
+          </div>
+          <button
+            className="danger-button"
+            onClick={() =>
+              deleteClient(
+                selectedClient.id,
+                `${selectedClient.firstName} ${selectedClient.lastName}`
+              )
+            }
+          >
+            Delete client
+          </button>
+        </div>
+
+        <div className="form-grid">
+          <div>
+            <label>First name</label>
+            <input
+              value={editForm.firstName}
+              onChange={(e) => updateEditForm('firstName', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Last name</label>
+            <input
+              value={editForm.lastName}
+              onChange={(e) => updateEditForm('lastName', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Email</label>
+            <input
+              value={editForm.email}
+              onChange={(e) => updateEditForm('email', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Mobile</label>
+            <input
+              value={editForm.mobile}
+              onChange={(e) => updateEditForm('mobile', e.target.value)}
+            />
+          </div>
+
+          <div className="full-width">
+            <label>Address line 1</label>
+            <input
+              value={editForm.addressLine1}
+              onChange={(e) => updateEditForm('addressLine1', e.target.value)}
+            />
+          </div>
+
+          <div className="full-width">
+            <label>Address line 2</label>
+            <input
+              value={editForm.addressLine2}
+              onChange={(e) => updateEditForm('addressLine2', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>City / Town</label>
+            <input
+              value={editForm.city}
+              onChange={(e) => updateEditForm('city', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>County</label>
+            <input
+              value={editForm.county}
+              onChange={(e) => updateEditForm('county', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Postcode</label>
+            <input
+              value={editForm.postcode}
+              onChange={(e) => updateEditForm('postcode', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Status</label>
+            <select
+              value={editForm.status}
+              onChange={(e) => updateEditForm('status', e.target.value)}
+            >
+              <option value="NEW_LEAD">New Lead</option>
+              <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+              <option value="QUALIFIED">Qualified</option>
+              <option value="DOCS_REQUESTED">Docs Requested</option>
+              <option value="DOCS_RECEIVED">Docs Received</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="APPROVED">Approved</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="LOST">Lost</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Source</label>
+            <input
+              value={editForm.source}
+              onChange={(e) => updateEditForm('source', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Campaign</label>
+            <input
+              value={editForm.campaign}
+              onChange={(e) => updateEditForm('campaign', e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
+            Reset changes
+          </button>
+          <button className="primary" onClick={saveClientChanges}>
+            Save changes
+          </button>
+        </div>
+      </section>
     );
   }
 
@@ -249,7 +443,7 @@ export default function App() {
         <header className="page-header">
           <div>
             <h2>Clients</h2>
-            <p>View, add and delete client records.</p>
+            <p>View, add, edit and delete client records.</p>
           </div>
           <div className="header-actions">
             <button className="secondary" onClick={() => loadClients()}>
@@ -257,7 +451,12 @@ export default function App() {
             </button>
             <button
               className="primary"
-              onClick={() => setShowAddClient((prev) => !prev)}
+              onClick={() => {
+                setShowAddClient((prev) => !prev);
+                setSelectedClientId(null);
+                setSuccess('');
+                setError('');
+              }}
             >
               {showAddClient ? 'Close form' : 'Add client'}
             </button>
@@ -389,74 +588,75 @@ export default function App() {
           </section>
         )}
 
-        <section className="card table-card">
-          <div className="table-header">
-            <h3>Client list</h3>
-            <div className="table-tools">
-              <input
-                className="search-input"
-                placeholder="Search by name, email, mobile or postcode"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <span>{filteredClients.length} records</span>
+        <section className="clients-layout">
+          <section className="card table-card">
+            <div className="table-header">
+              <h3>Client list</h3>
+              <div className="table-tools">
+                <input
+                  className="search-input"
+                  placeholder="Search by name, email, mobile or postcode"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <span>{filteredClients.length} records</span>
+              </div>
             </div>
-          </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Postcode</th>
-                <th>Status</th>
-                <th>Date Added</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredClients.length === 0 ? (
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={7}>No clients found.</td>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Mobile</th>
+                  <th>Postcode</th>
+                  <th>Status</th>
+                  <th>Date Added</th>
                 </tr>
-              ) : (
-                filteredClients.map((client) => (
-                  <tr key={client.id}>
-                    <td>
-                      <div className="client-name-cell">
-                        <strong>{client.firstName} {client.lastName}</strong>
-                        <span>
-                          {client.addressLine1 || client.city || client.county
-                            ? [client.addressLine1, client.city, client.county]
-                                .filter(Boolean)
-                                .join(', ')
-                            : '-'}
-                        </span>
-                      </div>
-                    </td>
-                    <td>{client.email || '-'}</td>
-                    <td>{client.mobile || '-'}</td>
-                    <td>{client.postcode || '-'}</td>
-                    <td>
-                      <span className="pill">{client.status.replaceAll('_', ' ')}</span>
-                    </td>
-                    <td>{formatDate(client.createdAt)}</td>
-                    <td>
-                      <button
-                        className="danger-button"
-                        onClick={() =>
-                          deleteClient(client.id, `${client.firstName} ${client.lastName}`)
-                        }
-                      >
-                        Delete
-                      </button>
-                    </td>
+              </thead>
+              <tbody>
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>No clients found.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredClients.map((client) => (
+                    <tr
+                      key={client.id}
+                      className={`clickable-row ${
+                        selectedClientId === client.id ? 'selected-row' : ''
+                      }`}
+                      onClick={() => openClient(client)}
+                    >
+                      <td>
+                        <div className="client-name-cell">
+                          <strong>
+                            {client.firstName} {client.lastName}
+                          </strong>
+                          <span>
+                            {client.addressLine1 || client.city || client.county
+                              ? [client.addressLine1, client.city, client.county]
+                                  .filter(Boolean)
+                                  .join(', ')
+                              : '-'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>{client.email || '-'}</td>
+                      <td>{client.mobile || '-'}</td>
+                      <td>{client.postcode || '-'}</td>
+                      <td>
+                        <span className="pill">{client.status.replaceAll('_', ' ')}</span>
+                      </td>
+                      <td>{formatDate(client.createdAt)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          {renderClientEditPanel()}
         </section>
       </>
     );
@@ -482,52 +682,54 @@ export default function App() {
           </div>
         </div>
 
-<nav className="nav">
-  <button
-    className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
-    onClick={() => setView('dashboard')}
-  >
-    Dashboard
-  </button>
-  <button
-    className={`nav-item ${view === 'clients' ? 'active' : ''}`}
-    onClick={() => setView('clients')}
-  >
-    Clients
-  </button>
-  <button
-    className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
-    onClick={() => setView('tasks')}
-  >
-    Tasks
-  </button>
-  <button
-    className={`nav-item ${view === 'reporting' ? 'active' : ''}`}
-    onClick={() => setView('reporting')}
-  >
-    Reporting
-  </button>
-  <button
-    className={`nav-item ${view === 'admin' ? 'active' : ''}`}
-    onClick={() => setView('admin')}
-  >
-    Admin
-  </button>
+        <nav className="nav">
+          <button
+            className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setView('dashboard')}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`nav-item ${view === 'clients' ? 'active' : ''}`}
+            onClick={() => setView('clients')}
+          >
+            Clients
+          </button>
+          <button
+            className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
+            onClick={() => setView('tasks')}
+          >
+            Tasks
+          </button>
+          <button
+            className={`nav-item ${view === 'reporting' ? 'active' : ''}`}
+            onClick={() => setView('reporting')}
+          >
+            Reporting
+          </button>
+          <button
+            className={`nav-item ${view === 'admin' ? 'active' : ''}`}
+            onClick={() => setView('admin')}
+          >
+            Admin
+          </button>
 
-  {isLoggedIn && (
-    <button
-      className="nav-item logout-item"
-      onClick={() => {
-        setToken('');
-        setClients([]);
-        setView('dashboard');
-        setError('');
-      }}
-    >
-      Log out
-    </button>
-  )}
-</nav>
+          {isLoggedIn && (
+            <button
+              className="nav-item logout-item"
+              onClick={() => {
+                setToken('');
+                setClients([]);
+                setSelectedClientId(null);
+                setView('dashboard');
+                setError('');
+                setSuccess('');
+              }}
+            >
+              Log out
+            </button>
+          )}
+        </nav>
       </aside>
 
       <main className="content">
@@ -551,6 +753,7 @@ export default function App() {
         ) : (
           <>
             {error && <p className="error inline-error">{error}</p>}
+            {success && <p className="success inline-success">{success}</p>}
 
             {view === 'dashboard' && renderDashboard()}
             {view === 'clients' && renderClients()}
