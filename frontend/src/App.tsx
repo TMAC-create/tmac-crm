@@ -1050,3 +1050,107 @@ export default function App() {
     </div>
   );
 }
+.client-record-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.client-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #fcfcff 0%, #f7f7fb 100%);
+  overflow-x: auto;
+}
+
+.client-tab {
+  border: none;
+  background: transparent;
+  padding: 16px 20px;
+  font-weight: 600;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.client-tab.active {
+  color: #111827;
+  background: white;
+  border-bottom: 3px solid #6d28d9;
+}
+
+.client-tab-content {
+  padding: 22px;
+}
+
+.tab-panel {
+  padding: 20px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summary-box {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  background: #fff;
+}
+
+.summary-box span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.summary-box strong {
+  font-size: 28px;
+}
+
+.summary-box.highlight {
+  background: linear-gradient(180deg, #f4fdf7 0%, #eefbf3 100%);
+}
+
+.compact-activity-panel {
+  padding: 18px;
+}
+
+.compact-activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.compact-activity-item {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.compact-activity-type {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6d28d9;
+  margin-bottom: 4px;
+}
+
+.compact-activity-description {
+  font-size: 14px;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.compact-activity-time {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
