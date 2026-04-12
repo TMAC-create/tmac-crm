@@ -1032,248 +1032,250 @@ const commsVariance = commsAllowance - totalComms;
     );
   }
 
-  function renderExpenditureTab() {
-    return (
-      <section className="card premium-panel tab-panel">
-        <div className="detail-sections">
-          <section className="detail-section">
-  <h4>Household setup</h4>
-  <div className="form-grid">
-    <div>
-      <label>Adults</label>
-      <select
-        value={expenditureForm.adults}
-        onChange={(e) => updateExpenditureForm('adults', e.target.value)}
-      >
-        {[1, 2, 3, 4, 5, 6].map((num) => (
-          <option key={num} value={String(num)}>
-            {num}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div>
-      <label>Children under 16</label>
-      <select
-        value={expenditureForm.childrenUnder16}
-        onChange={(e) => updateExpenditureForm('childrenUnder16', e.target.value)}
-      >
-        {[0, 1, 2, 3, 4, 5, 6].map((num) => (
-          <option key={num} value={String(num)}>
-            {num}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div>
-      <label>Children 16-18</label>
-      <select
-        value={expenditureForm.children16to18}
-        onChange={(e) => updateExpenditureForm('children16to18', e.target.value)}
-      >
-        {[0, 1, 2, 3, 4, 5, 6].map((num) => (
-          <option key={num} value={String(num)}>
-            {num}
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-</section>
-<section className="detail-section">
-  <h4>SFS guideline snapshot</h4>
-
-  <div className="sfs-grid">
-    <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Housekeeping</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
-
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalHousekeeping.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{housekeepingAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
-
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={housekeepingVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
-
-    <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Personal</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalPersonal, personalAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalPersonal, personalAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
-
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalPersonal.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{personalAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
-
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={personalVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
-
-    <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Comms & Leisure</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalComms, commsAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalComms, commsAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
-
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalComms.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{commsAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
-
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={commsVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
-  </div>
-</section>
-          <section className="detail-section">
-            <h4>SFS Housekeeping</h4>
-            <div className="form-grid">
-              <div><label>Food</label><input value={expenditureForm.housekeepingFood} onChange={(e) => updateExpenditureForm('housekeepingFood', e.target.value)} /></div>
-              <div><label>Cleaning</label><input value={expenditureForm.housekeepingCleaning} onChange={(e) => updateExpenditureForm('housekeepingCleaning', e.target.value)} /></div>
-              <div><label>Pets</label><input value={expenditureForm.housekeepingPets} onChange={(e) => updateExpenditureForm('housekeepingPets', e.target.value)} /></div>
-              <div><label>School meals</label><input value={expenditureForm.housekeepingSchoolMeals} onChange={(e) => updateExpenditureForm('housekeepingSchoolMeals', e.target.value)} /></div>
-              <div><label>Other housekeeping</label><input value={expenditureForm.housekeepingOther} onChange={(e) => updateExpenditureForm('housekeepingOther', e.target.value)} /></div>
+function renderExpenditureTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="detail-sections">
+        <section className="detail-section">
+          <h4>Household setup</h4>
+          <div className="form-grid">
+            <div>
+              <label>Adults</label>
+              <select
+                value={expenditureForm.adults}
+                onChange={(e) => updateExpenditureForm('adults', e.target.value)}
+              >
+                {[1, 2, 3, 4, 5, 6].map((num) => (
+                  <option key={num} value={String(num)}>
+                    {num}
+                  </option>
+                ))}
+              </select>
             </div>
-          </section>
 
-          <section className="detail-section">
-            <h4>SFS Personal</h4>
-            <div className="form-grid">
-              <div><label>Clothing</label><input value={expenditureForm.personalClothing} onChange={(e) => updateExpenditureForm('personalClothing', e.target.value)} /></div>
-              <div><label>Footwear</label><input value={expenditureForm.personalFootwear} onChange={(e) => updateExpenditureForm('personalFootwear', e.target.value)} /></div>
-              <div><label>Hairdressing</label><input value={expenditureForm.personalHairdressing} onChange={(e) => updateExpenditureForm('personalHairdressing', e.target.value)} /></div>
-              <div><label>Toiletries</label><input value={expenditureForm.personalToiletries} onChange={(e) => updateExpenditureForm('personalToiletries', e.target.value)} /></div>
-              <div><label>Laundry</label><input value={expenditureForm.personalLaundry} onChange={(e) => updateExpenditureForm('personalLaundry', e.target.value)} /></div>
-              <div><label>Other personal</label><input value={expenditureForm.personalOther} onChange={(e) => updateExpenditureForm('personalOther', e.target.value)} /></div>
+            <div>
+              <label>Children under 16</label>
+              <select
+                value={expenditureForm.childrenUnder16}
+                onChange={(e) => updateExpenditureForm('childrenUnder16', e.target.value)}
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+                  <option key={num} value={String(num)}>
+                    {num}
+                  </option>
+                ))}
+              </select>
             </div>
-          </section>
 
-          <section className="detail-section">
-            <h4>SFS Comms & Leisure</h4>
-            <div className="form-grid">
-              <div><label>Landline</label><input value={expenditureForm.commsLandline} onChange={(e) => updateExpenditureForm('commsLandline', e.target.value)} /></div>
-              <div><label>Mobile</label><input value={expenditureForm.commsMobile} onChange={(e) => updateExpenditureForm('commsMobile', e.target.value)} /></div>
-              <div><label>Internet</label><input value={expenditureForm.commsInternet} onChange={(e) => updateExpenditureForm('commsInternet', e.target.value)} /></div>
-              <div><label>TV package / Sky</label><input value={expenditureForm.commsTvPackage} onChange={(e) => updateExpenditureForm('commsTvPackage', e.target.value)} /></div>
-              <div><label>Entertainment</label><input value={expenditureForm.commsEntertainment} onChange={(e) => updateExpenditureForm('commsEntertainment', e.target.value)} /></div>
-              <div><label>Hobbies</label><input value={expenditureForm.commsHobbies} onChange={(e) => updateExpenditureForm('commsHobbies', e.target.value)} /></div>
-              <div><label>Pocket money</label><input value={expenditureForm.commsPocketMoney} onChange={(e) => updateExpenditureForm('commsPocketMoney', e.target.value)} /></div>
-              <div><label>Children’s activities</label><input value={expenditureForm.commsChildrenActivities} onChange={(e) => updateExpenditureForm('commsChildrenActivities', e.target.value)} /></div>
-              <div><label>Trips / days out</label><input value={expenditureForm.commsTrips} onChange={(e) => updateExpenditureForm('commsTrips', e.target.value)} /></div>
-              <div><label>Other comms & leisure</label><input value={expenditureForm.commsOther} onChange={(e) => updateExpenditureForm('commsOther', e.target.value)} /></div>
+            <div>
+              <label>Children 16-18</label>
+              <select
+                value={expenditureForm.children16to18}
+                onChange={(e) => updateExpenditureForm('children16to18', e.target.value)}
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+                  <option key={num} value={String(num)}>
+                    {num}
+                  </option>
+                ))}
+              </select>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className="detail-section">
-            <h4>Fixed / Non-SFS expenditure</h4>
-            <div className="form-grid">
-              <div><label>Mortgage</label><input value={expenditureForm.mortgage} onChange={(e) => updateExpenditureForm('mortgage', e.target.value)} /></div>
-              <div><label>Rent</label><input value={expenditureForm.rent} onChange={(e) => updateExpenditureForm('rent', e.target.value)} /></div>
-              <div><label>Secured loan</label><input value={expenditureForm.securedLoan} onChange={(e) => updateExpenditureForm('securedLoan', e.target.value)} /></div>
-              <div><label>Council tax</label><input value={expenditureForm.councilTax} onChange={(e) => updateExpenditureForm('councilTax', e.target.value)} /></div>
-              <div><label>Gas</label><input value={expenditureForm.gas} onChange={(e) => updateExpenditureForm('gas', e.target.value)} /></div>
-              <div><label>Electric</label><input value={expenditureForm.electric} onChange={(e) => updateExpenditureForm('electric', e.target.value)} /></div>
-              <div><label>Water</label><input value={expenditureForm.water} onChange={(e) => updateExpenditureForm('water', e.target.value)} /></div>
-              <div><label>TV licence</label><input value={expenditureForm.tvLicence} onChange={(e) => updateExpenditureForm('tvLicence', e.target.value)} /></div>
-              <div><label>Buildings insurance</label><input value={expenditureForm.buildingsInsurance} onChange={(e) => updateExpenditureForm('buildingsInsurance', e.target.value)} /></div>
-              <div><label>Contents insurance</label><input value={expenditureForm.contentsInsurance} onChange={(e) => updateExpenditureForm('contentsInsurance', e.target.value)} /></div>
-              <div><label>Life insurance</label><input value={expenditureForm.lifeInsurance} onChange={(e) => updateExpenditureForm('lifeInsurance', e.target.value)} /></div>
-              <div><label>Health insurance</label><input value={expenditureForm.healthInsurance} onChange={(e) => updateExpenditureForm('healthInsurance', e.target.value)} /></div>
-              <div><label>Car insurance</label><input value={expenditureForm.carInsurance} onChange={(e) => updateExpenditureForm('carInsurance', e.target.value)} /></div>
-              <div><label>Fuel</label><input value={expenditureForm.fuel} onChange={(e) => updateExpenditureForm('fuel', e.target.value)} /></div>
-              <div><label>Car tax</label><input value={expenditureForm.carTax} onChange={(e) => updateExpenditureForm('carTax', e.target.value)} /></div>
-              <div><label>Car maintenance</label><input value={expenditureForm.carMaintenance} onChange={(e) => updateExpenditureForm('carMaintenance', e.target.value)} /></div>
-              <div><label>MOT / servicing</label><input value={expenditureForm.motServicing} onChange={(e) => updateExpenditureForm('motServicing', e.target.value)} /></div>
-              <div><label>Public transport</label><input value={expenditureForm.publicTransport} onChange={(e) => updateExpenditureForm('publicTransport', e.target.value)} /></div>
-              <div><label>Parking / tolls</label><input value={expenditureForm.parkingTolls} onChange={(e) => updateExpenditureForm('parkingTolls', e.target.value)} /></div>
-              <div><label>Childcare</label><input value={expenditureForm.childcare} onChange={(e) => updateExpenditureForm('childcare', e.target.value)} /></div>
-              <div><label>School transport</label><input value={expenditureForm.schoolTransport} onChange={(e) => updateExpenditureForm('schoolTransport', e.target.value)} /></div>
-              <div><label>School uniforms</label><input value={expenditureForm.schoolUniforms} onChange={(e) => updateExpenditureForm('schoolUniforms', e.target.value)} /></div>
-              <div><label>Child maintenance paid</label><input value={expenditureForm.childMaintenancePaid} onChange={(e) => updateExpenditureForm('childMaintenancePaid', e.target.value)} /></div>
-              <div><label>Credit cards</label><input value={expenditureForm.creditCards} onChange={(e) => updateExpenditureForm('creditCards', e.target.value)} /></div>
-              <div><label>Loans</label><input value={expenditureForm.loans} onChange={(e) => updateExpenditureForm('loans', e.target.value)} /></div>
-              <div><label>HP / PCP</label><input value={expenditureForm.hpPcp} onChange={(e) => updateExpenditureForm('hpPcp', e.target.value)} /></div>
-              <div><label>Overdraft</label><input value={expenditureForm.overdraft} onChange={(e) => updateExpenditureForm('overdraft', e.target.value)} /></div>
-              <div><label>Store cards</label><input value={expenditureForm.storeCards} onChange={(e) => updateExpenditureForm('storeCards', e.target.value)} /></div>
-              <div><label>Catalogue payments</label><input value={expenditureForm.cataloguePayments} onChange={(e) => updateExpenditureForm('cataloguePayments', e.target.value)} /></div>
-              <div><label>Medical / prescriptions</label><input value={expenditureForm.medical} onChange={(e) => updateExpenditureForm('medical', e.target.value)} /></div>
-              <div><label>Dental / optical</label><input value={expenditureForm.dentalOptical} onChange={(e) => updateExpenditureForm('dentalOptical', e.target.value)} /></div>
-              <div><label>Professional fees</label><input value={expenditureForm.professionalFees} onChange={(e) => updateExpenditureForm('professionalFees', e.target.value)} /></div>
-              <div><label>Union fees</label><input value={expenditureForm.unionFees} onChange={(e) => updateExpenditureForm('unionFees', e.target.value)} /></div>
-              <div><label>Other essential</label><input value={expenditureForm.otherEssential} onChange={(e) => updateExpenditureForm('otherEssential', e.target.value)} /></div>
+        <section className="detail-section">
+          <h4>SFS guideline snapshot</h4>
+
+          <div className="sfs-grid">
+            <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
+              <div className="sfs-card-top">
+                <span className="sfs-card-title">Housekeeping</span>
+                <span
+                  className={`sfs-status-pill ${
+                    getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                      ? 'within'
+                      : 'over'
+                  }`}
+                >
+                  {getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                    ? 'Within Guideline'
+                    : 'Over Guideline'}
+                </span>
+              </div>
+
+              <div className="sfs-figure-row">
+                <div>
+                  <label>Actual</label>
+                  <strong>£{totalHousekeeping.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <label>Allowed</label>
+                  <strong>£{housekeepingAllowance.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div className="sfs-variance-row">
+                Variance:
+                <span className={housekeepingVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                  {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
+                </span>
+              </div>
             </div>
-          </section>
-        </div>
-      </section>
-    );
-  }
+
+            <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
+              <div className="sfs-card-top">
+                <span className="sfs-card-title">Personal</span>
+                <span
+                  className={`sfs-status-pill ${
+                    getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                      ? 'within'
+                      : 'over'
+                  }`}
+                >
+                  {getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                    ? 'Within Guideline'
+                    : 'Over Guideline'}
+                </span>
+              </div>
+
+              <div className="sfs-figure-row">
+                <div>
+                  <label>Actual</label>
+                  <strong>£{totalPersonal.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <label>Allowed</label>
+                  <strong>£{personalAllowance.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div className="sfs-variance-row">
+                Variance:
+                <span className={personalVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                  {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
+              <div className="sfs-card-top">
+                <span className="sfs-card-title">Comms & Leisure</span>
+                <span
+                  className={`sfs-status-pill ${
+                    getVarianceStatus(totalComms, commsAllowance) === 'within'
+                      ? 'within'
+                      : 'over'
+                  }`}
+                >
+                  {getVarianceStatus(totalComms, commsAllowance) === 'within'
+                    ? 'Within Guideline'
+                    : 'Over Guideline'}
+                </span>
+              </div>
+
+              <div className="sfs-figure-row">
+                <div>
+                  <label>Actual</label>
+                  <strong>£{totalComms.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <label>Allowed</label>
+                  <strong>£{commsAllowance.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div className="sfs-variance-row">
+                Variance:
+                <span className={commsVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                  {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>SFS Housekeeping</h4>
+          <div className="form-grid">
+            <div><label>Food</label><input value={expenditureForm.housekeepingFood} onChange={(e) => updateExpenditureForm('housekeepingFood', e.target.value)} /></div>
+            <div><label>Cleaning</label><input value={expenditureForm.housekeepingCleaning} onChange={(e) => updateExpenditureForm('housekeepingCleaning', e.target.value)} /></div>
+            <div><label>Pets</label><input value={expenditureForm.housekeepingPets} onChange={(e) => updateExpenditureForm('housekeepingPets', e.target.value)} /></div>
+            <div><label>School meals</label><input value={expenditureForm.housekeepingSchoolMeals} onChange={(e) => updateExpenditureForm('housekeepingSchoolMeals', e.target.value)} /></div>
+            <div><label>Other housekeeping</label><input value={expenditureForm.housekeepingOther} onChange={(e) => updateExpenditureForm('housekeepingOther', e.target.value)} /></div>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>SFS Personal</h4>
+          <div className="form-grid">
+            <div><label>Clothing</label><input value={expenditureForm.personalClothing} onChange={(e) => updateExpenditureForm('personalClothing', e.target.value)} /></div>
+            <div><label>Footwear</label><input value={expenditureForm.personalFootwear} onChange={(e) => updateExpenditureForm('personalFootwear', e.target.value)} /></div>
+            <div><label>Hairdressing</label><input value={expenditureForm.personalHairdressing} onChange={(e) => updateExpenditureForm('personalHairdressing', e.target.value)} /></div>
+            <div><label>Toiletries</label><input value={expenditureForm.personalToiletries} onChange={(e) => updateExpenditureForm('personalToiletries', e.target.value)} /></div>
+            <div><label>Laundry</label><input value={expenditureForm.personalLaundry} onChange={(e) => updateExpenditureForm('personalLaundry', e.target.value)} /></div>
+            <div><label>Other personal</label><input value={expenditureForm.personalOther} onChange={(e) => updateExpenditureForm('personalOther', e.target.value)} /></div>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>SFS Comms & Leisure</h4>
+          <div className="form-grid">
+            <div><label>Landline</label><input value={expenditureForm.commsLandline} onChange={(e) => updateExpenditureForm('commsLandline', e.target.value)} /></div>
+            <div><label>Mobile</label><input value={expenditureForm.commsMobile} onChange={(e) => updateExpenditureForm('commsMobile', e.target.value)} /></div>
+            <div><label>Internet</label><input value={expenditureForm.commsInternet} onChange={(e) => updateExpenditureForm('commsInternet', e.target.value)} /></div>
+            <div><label>TV package / Sky</label><input value={expenditureForm.commsTvPackage} onChange={(e) => updateExpenditureForm('commsTvPackage', e.target.value)} /></div>
+            <div><label>Entertainment</label><input value={expenditureForm.commsEntertainment} onChange={(e) => updateExpenditureForm('commsEntertainment', e.target.value)} /></div>
+            <div><label>Hobbies</label><input value={expenditureForm.commsHobbies} onChange={(e) => updateExpenditureForm('commsHobbies', e.target.value)} /></div>
+            <div><label>Pocket money</label><input value={expenditureForm.commsPocketMoney} onChange={(e) => updateExpenditureForm('commsPocketMoney', e.target.value)} /></div>
+            <div><label>Children’s activities</label><input value={expenditureForm.commsChildrenActivities} onChange={(e) => updateExpenditureForm('commsChildrenActivities', e.target.value)} /></div>
+            <div><label>Trips / days out</label><input value={expenditureForm.commsTrips} onChange={(e) => updateExpenditureForm('commsTrips', e.target.value)} /></div>
+            <div><label>Other comms & leisure</label><input value={expenditureForm.commsOther} onChange={(e) => updateExpenditureForm('commsOther', e.target.value)} /></div>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>Fixed / Non-SFS expenditure</h4>
+          <div className="form-grid">
+            <div><label>Mortgage</label><input value={expenditureForm.mortgage} onChange={(e) => updateExpenditureForm('mortgage', e.target.value)} /></div>
+            <div><label>Rent</label><input value={expenditureForm.rent} onChange={(e) => updateExpenditureForm('rent', e.target.value)} /></div>
+            <div><label>Secured loan</label><input value={expenditureForm.securedLoan} onChange={(e) => updateExpenditureForm('securedLoan', e.target.value)} /></div>
+            <div><label>Council tax</label><input value={expenditureForm.councilTax} onChange={(e) => updateExpenditureForm('councilTax', e.target.value)} /></div>
+            <div><label>Gas</label><input value={expenditureForm.gas} onChange={(e) => updateExpenditureForm('gas', e.target.value)} /></div>
+            <div><label>Electric</label><input value={expenditureForm.electric} onChange={(e) => updateExpenditureForm('electric', e.target.value)} /></div>
+            <div><label>Water</label><input value={expenditureForm.water} onChange={(e) => updateExpenditureForm('water', e.target.value)} /></div>
+            <div><label>TV licence</label><input value={expenditureForm.tvLicence} onChange={(e) => updateExpenditureForm('tvLicence', e.target.value)} /></div>
+            <div><label>Buildings insurance</label><input value={expenditureForm.buildingsInsurance} onChange={(e) => updateExpenditureForm('buildingsInsurance', e.target.value)} /></div>
+            <div><label>Contents insurance</label><input value={expenditureForm.contentsInsurance} onChange={(e) => updateExpenditureForm('contentsInsurance', e.target.value)} /></div>
+            <div><label>Life insurance</label><input value={expenditureForm.lifeInsurance} onChange={(e) => updateExpenditureForm('lifeInsurance', e.target.value)} /></div>
+            <div><label>Health insurance</label><input value={expenditureForm.healthInsurance} onChange={(e) => updateExpenditureForm('healthInsurance', e.target.value)} /></div>
+            <div><label>Car insurance</label><input value={expenditureForm.carInsurance} onChange={(e) => updateExpenditureForm('carInsurance', e.target.value)} /></div>
+            <div><label>Fuel</label><input value={expenditureForm.fuel} onChange={(e) => updateExpenditureForm('fuel', e.target.value)} /></div>
+            <div><label>Car tax</label><input value={expenditureForm.carTax} onChange={(e) => updateExpenditureForm('carTax', e.target.value)} /></div>
+            <div><label>Car maintenance</label><input value={expenditureForm.carMaintenance} onChange={(e) => updateExpenditureForm('carMaintenance', e.target.value)} /></div>
+            <div><label>MOT / servicing</label><input value={expenditureForm.motServicing} onChange={(e) => updateExpenditureForm('motServicing', e.target.value)} /></div>
+            <div><label>Public transport</label><input value={expenditureForm.publicTransport} onChange={(e) => updateExpenditureForm('publicTransport', e.target.value)} /></div>
+            <div><label>Parking / tolls</label><input value={expenditureForm.parkingTolls} onChange={(e) => updateExpenditureForm('parkingTolls', e.target.value)} /></div>
+            <div><label>Childcare</label><input value={expenditureForm.childcare} onChange={(e) => updateExpenditureForm('childcare', e.target.value)} /></div>
+            <div><label>School transport</label><input value={expenditureForm.schoolTransport} onChange={(e) => updateExpenditureForm('schoolTransport', e.target.value)} /></div>
+            <div><label>School uniforms</label><input value={expenditureForm.schoolUniforms} onChange={(e) => updateExpenditureForm('schoolUniforms', e.target.value)} /></div>
+            <div><label>Child maintenance paid</label><input value={expenditureForm.childMaintenancePaid} onChange={(e) => updateExpenditureForm('childMaintenancePaid', e.target.value)} /></div>
+            <div><label>Credit cards</label><input value={expenditureForm.creditCards} onChange={(e) => updateExpenditureForm('creditCards', e.target.value)} /></div>
+            <div><label>Loans</label><input value={expenditureForm.loans} onChange={(e) => updateExpenditureForm('loans', e.target.value)} /></div>
+            <div><label>HP / PCP</label><input value={expenditureForm.hpPcp} onChange={(e) => updateExpenditureForm('hpPcp', e.target.value)} /></div>
+            <div><label>Overdraft</label><input value={expenditureForm.overdraft} onChange={(e) => updateExpenditureForm('overdraft', e.target.value)} /></div>
+            <div><label>Store cards</label><input value={expenditureForm.storeCards} onChange={(e) => updateExpenditureForm('storeCards', e.target.value)} /></div>
+            <div><label>Catalogue payments</label><input value={expenditureForm.cataloguePayments} onChange={(e) => updateExpenditureForm('cataloguePayments', e.target.value)} /></div>
+            <div><label>Medical / prescriptions</label><input value={expenditureForm.medical} onChange={(e) => updateExpenditureForm('medical', e.target.value)} /></div>
+            <div><label>Dental / optical</label><input value={expenditureForm.dentalOptical} onChange={(e) => updateExpenditureForm('dentalOptical', e.target.value)} /></div>
+            <div><label>Professional fees</label><input value={expenditureForm.professionalFees} onChange={(e) => updateExpenditureForm('professionalFees', e.target.value)} /></div>
+            <div><label>Union fees</label><input value={expenditureForm.unionFees} onChange={(e) => updateExpenditureForm('unionFees', e.target.value)} /></div>
+            <div><label>Other essential</label><input value={expenditureForm.otherEssential} onChange={(e) => updateExpenditureForm('otherEssential', e.target.value)} /></div>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
 
 function renderSummaryTab() {
   return (
@@ -1301,165 +1303,119 @@ function renderSummaryTab() {
         </div>
       </div>
 
-  <section className="detail-section summary-section">
-  <h4>SFS comparison</h4>
+      <section className="detail-section summary-section">
+        <h4>SFS comparison</h4>
 
-  <div className="sfs-grid">
-    <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Housekeeping</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
+        <div className="sfs-grid">
+          <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Housekeeping</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
 
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalHousekeeping.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{housekeepingAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalHousekeeping.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{housekeepingAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
 
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={housekeepingVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={housekeepingVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
+              </span>
+            </div>
+          </div>
 
-    <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Personal</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalPersonal, personalAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalPersonal, personalAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
+          <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Personal</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
 
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalPersonal.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{personalAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalPersonal.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{personalAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
 
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={personalVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={personalVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
+              </span>
+            </div>
+          </div>
 
-    <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
-      <div className="sfs-card-top">
-        <span className="sfs-card-title">Comms & Leisure</span>
-        <span
-          className={`sfs-status-pill ${
-            getVarianceStatus(totalComms, commsAllowance) === 'within'
-              ? 'within'
-              : 'over'
-          }`}
-        >
-          {getVarianceStatus(totalComms, commsAllowance) === 'within'
-            ? 'Within Guideline'
-            : 'Over Guideline'}
-        </span>
-      </div>
+          <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Comms & Leisure</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalComms, commsAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalComms, commsAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
 
-      <div className="sfs-figure-row">
-        <div>
-          <label>Actual</label>
-          <strong>£{totalComms.toFixed(2)}</strong>
-        </div>
-        <div>
-          <label>Allowed</label>
-          <strong>£{commsAllowance.toFixed(2)}</strong>
-        </div>
-      </div>
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalComms.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{commsAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
 
-      <div className="sfs-variance-row">
-        Variance:
-        <span className={commsVariance >= 0 ? 'variance-good' : 'variance-bad'}>
-          {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
-        </span>
-      </div>
-    </div>
-  </div>
-</section>
-
-  function renderNotesTab() {
-    if (!selectedClient) return null;
-
-    const notes = selectedClient.notes || [];
-
-    return (
-      <section className="card timeline-panel premium-panel">
-        <div className="table-header">
-          <h3>Notes</h3>
-          <span>{notes.length} entries</span>
-        </div>
-
-        <div className="note-entry-box">
-          <label>Add note</label>
-          <textarea
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Add a note to the client record"
-            rows={4}
-          />
-          <div className="form-actions">
-            <button className="primary" onClick={addNote}>
-              Save note
-            </button>
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={commsVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
+              </span>
+            </div>
           </div>
         </div>
-
-        <div className="timeline-list">
-          {notes.length === 0 ? (
-            <p className="muted-text">No notes yet.</p>
-          ) : (
-            notes.map((note) => (
-              <div key={note.id} className="timeline-item note">
-                <div className="timeline-dot" />
-                <div className="timeline-content">
-                  <div className="timeline-head">
-                    <strong>Internal note</strong>
-                    <span>{formatDateTime(note.createdAt)}</span>
-                  </div>
-                  <p>{note.body}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
       </section>
-    );
-  }
+    </section>
+  );
+}
 
   function renderActivityTab() {
     if (!selectedClient) return null;
