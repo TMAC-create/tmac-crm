@@ -1492,7 +1492,7 @@ function renderSummaryTab() {
             {clientTab === 'income' && renderIncomeTab()}
             {clientTab === 'expenditure' && renderExpenditureTab()}
             {clientTab === 'summary' && renderSummaryTab()}
-            {clientTab === 'notes' && renderNotesTab()}
+            {clientTab === 'notes' && renderNoteTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
         </section>
