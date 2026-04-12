@@ -1033,3 +1033,13 @@ dd { margin: 0; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 }
+.sub-section {
+  margin-bottom: 20px;
+}
+
+.sub-section h5 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 10px;
+}
