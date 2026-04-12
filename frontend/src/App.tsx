@@ -1233,50 +1233,85 @@ function renderExpenditureTab() {
           </div>
         </section>
 
-        <section className="detail-section">
-          <h4>Fixed / Non-SFS expenditure</h4>
-          <div className="form-grid">
-            <div><label>Mortgage</label><input value={expenditureForm.mortgage} onChange={(e) => updateExpenditureForm('mortgage', e.target.value)} /></div>
-            <div><label>Rent</label><input value={expenditureForm.rent} onChange={(e) => updateExpenditureForm('rent', e.target.value)} /></div>
-            <div><label>Secured loan</label><input value={expenditureForm.securedLoan} onChange={(e) => updateExpenditureForm('securedLoan', e.target.value)} /></div>
-            <div><label>Council tax</label><input value={expenditureForm.councilTax} onChange={(e) => updateExpenditureForm('councilTax', e.target.value)} /></div>
-            <div><label>Gas</label><input value={expenditureForm.gas} onChange={(e) => updateExpenditureForm('gas', e.target.value)} /></div>
-            <div><label>Electric</label><input value={expenditureForm.electric} onChange={(e) => updateExpenditureForm('electric', e.target.value)} /></div>
-            <div><label>Water</label><input value={expenditureForm.water} onChange={(e) => updateExpenditureForm('water', e.target.value)} /></div>
-            <div><label>TV licence</label><input value={expenditureForm.tvLicence} onChange={(e) => updateExpenditureForm('tvLicence', e.target.value)} /></div>
-            <div><label>Buildings insurance</label><input value={expenditureForm.buildingsInsurance} onChange={(e) => updateExpenditureForm('buildingsInsurance', e.target.value)} /></div>
-            <div><label>Contents insurance</label><input value={expenditureForm.contentsInsurance} onChange={(e) => updateExpenditureForm('contentsInsurance', e.target.value)} /></div>
-            <div><label>Life insurance</label><input value={expenditureForm.lifeInsurance} onChange={(e) => updateExpenditureForm('lifeInsurance', e.target.value)} /></div>
-            <div><label>Health insurance</label><input value={expenditureForm.healthInsurance} onChange={(e) => updateExpenditureForm('healthInsurance', e.target.value)} /></div>
-            <div><label>Car insurance</label><input value={expenditureForm.carInsurance} onChange={(e) => updateExpenditureForm('carInsurance', e.target.value)} /></div>
-            <div><label>Fuel</label><input value={expenditureForm.fuel} onChange={(e) => updateExpenditureForm('fuel', e.target.value)} /></div>
-            <div><label>Car tax</label><input value={expenditureForm.carTax} onChange={(e) => updateExpenditureForm('carTax', e.target.value)} /></div>
-            <div><label>Car maintenance</label><input value={expenditureForm.carMaintenance} onChange={(e) => updateExpenditureForm('carMaintenance', e.target.value)} /></div>
-            <div><label>MOT / servicing</label><input value={expenditureForm.motServicing} onChange={(e) => updateExpenditureForm('motServicing', e.target.value)} /></div>
-            <div><label>Public transport</label><input value={expenditureForm.publicTransport} onChange={(e) => updateExpenditureForm('publicTransport', e.target.value)} /></div>
-            <div><label>Parking / tolls</label><input value={expenditureForm.parkingTolls} onChange={(e) => updateExpenditureForm('parkingTolls', e.target.value)} /></div>
-            <div><label>Childcare</label><input value={expenditureForm.childcare} onChange={(e) => updateExpenditureForm('childcare', e.target.value)} /></div>
-            <div><label>School transport</label><input value={expenditureForm.schoolTransport} onChange={(e) => updateExpenditureForm('schoolTransport', e.target.value)} /></div>
-            <div><label>School uniforms</label><input value={expenditureForm.schoolUniforms} onChange={(e) => updateExpenditureForm('schoolUniforms', e.target.value)} /></div>
-            <div><label>Child maintenance paid</label><input value={expenditureForm.childMaintenancePaid} onChange={(e) => updateExpenditureForm('childMaintenancePaid', e.target.value)} /></div>
-            <div><label>Credit cards</label><input value={expenditureForm.creditCards} onChange={(e) => updateExpenditureForm('creditCards', e.target.value)} /></div>
-            <div><label>Loans</label><input value={expenditureForm.loans} onChange={(e) => updateExpenditureForm('loans', e.target.value)} /></div>
-            <div><label>HP / PCP</label><input value={expenditureForm.hpPcp} onChange={(e) => updateExpenditureForm('hpPcp', e.target.value)} /></div>
-            <div><label>Overdraft</label><input value={expenditureForm.overdraft} onChange={(e) => updateExpenditureForm('overdraft', e.target.value)} /></div>
-            <div><label>Store cards</label><input value={expenditureForm.storeCards} onChange={(e) => updateExpenditureForm('storeCards', e.target.value)} /></div>
-            <div><label>Catalogue payments</label><input value={expenditureForm.cataloguePayments} onChange={(e) => updateExpenditureForm('cataloguePayments', e.target.value)} /></div>
-            <div><label>Medical / prescriptions</label><input value={expenditureForm.medical} onChange={(e) => updateExpenditureForm('medical', e.target.value)} /></div>
-            <div><label>Dental / optical</label><input value={expenditureForm.dentalOptical} onChange={(e) => updateExpenditureForm('dentalOptical', e.target.value)} /></div>
-            <div><label>Professional fees</label><input value={expenditureForm.professionalFees} onChange={(e) => updateExpenditureForm('professionalFees', e.target.value)} /></div>
-            <div><label>Union fees</label><input value={expenditureForm.unionFees} onChange={(e) => updateExpenditureForm('unionFees', e.target.value)} /></div>
-            <div><label>Other essential</label><input value={expenditureForm.otherEssential} onChange={(e) => updateExpenditureForm('otherEssential', e.target.value)} /></div>
-          </div>
-        </section>
-      </div>
-    </section>
-  );
-}
+       <section className="detail-section">
+  <h4>Fixed / Non-SFS expenditure</h4>
 
+  <div className="sub-section">
+    <h5>Housing</h5>
+    <div className="form-grid">
+      <div><label>Mortgage</label><input value={expenditureForm.mortgage} onChange={(e) => updateExpenditureForm('mortgage', e.target.value)} /></div>
+      <div><label>Rent</label><input value={expenditureForm.rent} onChange={(e) => updateExpenditureForm('rent', e.target.value)} /></div>
+      <div><label>Secured loan</label><input value={expenditureForm.securedLoan} onChange={(e) => updateExpenditureForm('securedLoan', e.target.value)} /></div>
+      <div><label>Council tax</label><input value={expenditureForm.councilTax} onChange={(e) => updateExpenditureForm('councilTax', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Utilities & Bills</h5>
+    <div className="form-grid">
+      <div><label>Gas</label><input value={expenditureForm.gas} onChange={(e) => updateExpenditureForm('gas', e.target.value)} /></div>
+      <div><label>Electric</label><input value={expenditureForm.electric} onChange={(e) => updateExpenditureForm('electric', e.target.value)} /></div>
+      <div><label>Water</label><input value={expenditureForm.water} onChange={(e) => updateExpenditureForm('water', e.target.value)} /></div>
+      <div><label>TV licence</label><input value={expenditureForm.tvLicence} onChange={(e) => updateExpenditureForm('tvLicence', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Insurance (excluding car)</h5>
+    <div className="form-grid">
+      <div><label>Buildings insurance</label><input value={expenditureForm.buildingsInsurance} onChange={(e) => updateExpenditureForm('buildingsInsurance', e.target.value)} /></div>
+      <div><label>Contents insurance</label><input value={expenditureForm.contentsInsurance} onChange={(e) => updateExpenditureForm('contentsInsurance', e.target.value)} /></div>
+      <div><label>Life insurance</label><input value={expenditureForm.lifeInsurance} onChange={(e) => updateExpenditureForm('lifeInsurance', e.target.value)} /></div>
+      <div><label>Health insurance</label><input value={expenditureForm.healthInsurance} onChange={(e) => updateExpenditureForm('healthInsurance', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Vehicle Costs</h5>
+    <div className="form-grid">
+      <div><label>Car insurance</label><input value={expenditureForm.carInsurance} onChange={(e) => updateExpenditureForm('carInsurance', e.target.value)} /></div>
+      <div><label>Fuel</label><input value={expenditureForm.fuel} onChange={(e) => updateExpenditureForm('fuel', e.target.value)} /></div>
+      <div><label>Car tax</label><input value={expenditureForm.carTax} onChange={(e) => updateExpenditureForm('carTax', e.target.value)} /></div>
+      <div><label>Maintenance</label><input value={expenditureForm.carMaintenance} onChange={(e) => updateExpenditureForm('carMaintenance', e.target.value)} /></div>
+      <div><label>MOT / servicing</label><input value={expenditureForm.motServicing} onChange={(e) => updateExpenditureForm('motServicing', e.target.value)} /></div>
+      <div><label>Parking / tolls</label><input value={expenditureForm.parkingTolls} onChange={(e) => updateExpenditureForm('parkingTolls', e.target.value)} /></div>
+      <div><label>Public transport</label><input value={expenditureForm.publicTransport} onChange={(e) => updateExpenditureForm('publicTransport', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Children & Family</h5>
+    <div className="form-grid">
+      <div><label>Childcare</label><input value={expenditureForm.childcare} onChange={(e) => updateExpenditureForm('childcare', e.target.value)} /></div>
+      <div><label>School transport</label><input value={expenditureForm.schoolTransport} onChange={(e) => updateExpenditureForm('schoolTransport', e.target.value)} /></div>
+      <div><label>School uniforms</label><input value={expenditureForm.schoolUniforms} onChange={(e) => updateExpenditureForm('schoolUniforms', e.target.value)} /></div>
+      <div><label>Child maintenance paid</label><input value={expenditureForm.childMaintenancePaid} onChange={(e) => updateExpenditureForm('childMaintenancePaid', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Credit Commitments</h5>
+    <div className="form-grid">
+      <div><label>Credit cards</label><input value={expenditureForm.creditCards} onChange={(e) => updateExpenditureForm('creditCards', e.target.value)} /></div>
+      <div><label>Loans</label><input value={expenditureForm.loans} onChange={(e) => updateExpenditureForm('loans', e.target.value)} /></div>
+      <div><label>HP / PCP</label><input value={expenditureForm.hpPcp} onChange={(e) => updateExpenditureForm('hpPcp', e.target.value)} /></div>
+      <div><label>Overdraft</label><input value={expenditureForm.overdraft} onChange={(e) => updateExpenditureForm('overdraft', e.target.value)} /></div>
+      <div><label>Store cards</label><input value={expenditureForm.storeCards} onChange={(e) => updateExpenditureForm('storeCards', e.target.value)} /></div>
+      <div><label>Catalogue payments</label><input value={expenditureForm.cataloguePayments} onChange={(e) => updateExpenditureForm('cataloguePayments', e.target.value)} /></div>
+    </div>
+  </div>
+
+  <div className="sub-section">
+    <h5>Other Essentials</h5>
+    <div className="form-grid">
+      <div><label>Medical</label><input value={expenditureForm.medical} onChange={(e) => updateExpenditureForm('medical', e.target.value)} /></div>
+      <div><label>Dental / optical</label><input value={expenditureForm.dentalOptical} onChange={(e) => updateExpenditureForm('dentalOptical', e.target.value)} /></div>
+      <div><label>Professional fees</label><input value={expenditureForm.professionalFees} onChange={(e) => updateExpenditureForm('professionalFees', e.target.value)} /></div>
+      <div><label>Union fees</label><input value={expenditureForm.unionFees} onChange={(e) => updateExpenditureForm('unionFees', e.target.value)} /></div>
+      <div><label>Other essential</label><input value={expenditureForm.otherEssential} onChange={(e) => updateExpenditureForm('otherEssential', e.target.value)} /></div>
+    </div>
+  </div>
+</section>
 function renderSummaryTab() {
   return (
     <section className="card premium-panel tab-panel">
