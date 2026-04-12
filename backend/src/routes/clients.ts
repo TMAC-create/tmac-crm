@@ -17,6 +17,13 @@ const statusEnum = z.enum([
   'LOST',
 ]);
 
+const metadataSchema = z
+  .object({
+    income: z.record(z.string(), z.any()).optional(),
+    expenditure: z.record(z.string(), z.any()).optional(),
+  })
+  .optional();
+
 const clientSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -31,6 +38,7 @@ const clientSchema = z.object({
   source: z.string().optional(),
   campaign: z.string().optional(),
   status: statusEnum.optional(),
+  metadataJson: metadataSchema,
 });
 
 const updateClientSchema = clientSchema;
@@ -96,6 +104,7 @@ clientsRouter.post('/', async (req, res) => {
       source: parsed.data.source || null,
       campaign: parsed.data.campaign || null,
       status: parsed.data.status || 'NEW_LEAD',
+      metadataJson: parsed.data.metadataJson || {},
     },
   });
 
@@ -144,6 +153,7 @@ clientsRouter.patch('/:id', async (req, res) => {
       source: parsed.data.source || null,
       campaign: parsed.data.campaign || null,
       status: parsed.data.status || 'NEW_LEAD',
+      metadataJson: parsed.data.metadataJson || {},
     },
   });
 
