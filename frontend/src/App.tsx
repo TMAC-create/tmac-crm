@@ -1316,7 +1316,146 @@ function renderExpenditureTab() {
     </section>
   );
 }
-function renderNotesTab() {
+function renderSummaryTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="summary-grid">
+        <div className="summary-box">
+          <span>Total income</span>
+          <strong>£{totalIncome.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Total SFS expenditure</span>
+          <strong>£{(totalHousekeeping + totalPersonal + totalComms).toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Fixed expenditure</span>
+          <strong>£{totalFixedExpenditure.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Total expenditure</span>
+          <strong>£{totalExpenditure.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box highlight">
+          <span>Disposable income</span>
+          <strong>£{disposableIncome.toFixed(2)}</strong>
+        </div>
+      </div>
+
+      <section className="detail-section summary-section">
+        <h4>SFS comparison</h4>
+
+        <div className="sfs-grid">
+          <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Housekeeping</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalHousekeeping, housekeepingAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
+
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalHousekeeping.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{housekeepingAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={housekeepingVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Personal</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalPersonal, personalAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
+
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalPersonal.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{personalAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={personalVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
+            <div className="sfs-card-top">
+              <span className="sfs-card-title">Comms & Leisure</span>
+              <span
+                className={`sfs-status-pill ${
+                  getVarianceStatus(totalComms, commsAllowance) === 'within'
+                    ? 'within'
+                    : 'over'
+                }`}
+              >
+                {getVarianceStatus(totalComms, commsAllowance) === 'within'
+                  ? 'Within Guideline'
+                  : 'Over Guideline'}
+              </span>
+            </div>
+
+            <div className="sfs-figure-row">
+              <div>
+                <label>Actual</label>
+                <strong>£{totalComms.toFixed(2)}</strong>
+              </div>
+              <div>
+                <label>Allowed</label>
+                <strong>£{commsAllowance.toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="sfs-variance-row">
+              Variance:
+              <span className={commsVariance >= 0 ? 'variance-good' : 'variance-bad'}>
+                {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+}
+  function renderNotesTab() {
   if (!selectedClient) return null;
 
   const notes = selectedClient.notes || [];
