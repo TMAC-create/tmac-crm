@@ -13,6 +13,11 @@ type Activity = {
   createdAt: string;
 };
 
+type ClientMetadata = {
+  income?: Record<string, string>;
+  expenditure?: Record<string, string>;
+};
+
 type Client = {
   id: string;
   firstName: string;
@@ -31,9 +36,11 @@ type Client = {
   createdAt: string;
   notes?: Note[];
   activities?: Activity[];
+  metadataJson?: ClientMetadata | null;
 };
 
 type View = 'dashboard' | 'clients' | 'tasks' | 'reporting' | 'admin';
+type ClientTab = 'overview' | 'income' | 'expenditure' | 'summary' | 'notes' | 'activity';
 
 const API_URL = 'https://tmac-crm-api.onrender.com';
 
@@ -53,6 +60,98 @@ const emptyClientForm = {
   status: 'NEW_LEAD',
 };
 
+const emptyIncomeData: Record<string, string> = {
+  clientSalary: '',
+  partnerSalary: '',
+  clientOvertime: '',
+  partnerOvertime: '',
+  clientBonus: '',
+  partnerBonus: '',
+  clientSelfEmployed: '',
+  partnerSelfEmployed: '',
+  universalCredit: '',
+  childBenefit: '',
+  workingTaxCredit: '',
+  childTaxCredit: '',
+  pip: '',
+  dla: '',
+  attendanceAllowance: '',
+  carersAllowance: '',
+  esa: '',
+  jsa: '',
+  housingBenefit: '',
+  pensionCredit: '',
+  statePension: '',
+  maintenanceReceived: '',
+  boardIncome: '',
+  pensionIncome: '',
+  rentalIncome: '',
+  familySupport: '',
+  otherIncome1: '',
+  otherIncome2: '',
+};
+
+const emptyExpenditureData: Record<string, string> = {
+  adults: '1',
+  childrenUnder16: '0',
+  children16to18: '0',
+  housekeepingFood: '',
+  housekeepingCleaning: '',
+  housekeepingPets: '',
+  housekeepingSchoolMeals: '',
+  housekeepingOther: '',
+  personalClothing: '',
+  personalFootwear: '',
+  personalHairdressing: '',
+  personalToiletries: '',
+  personalLaundry: '',
+  personalOther: '',
+  commsLandline: '',
+  commsMobile: '',
+  commsInternet: '',
+  commsTvPackage: '',
+  commsEntertainment: '',
+  commsHobbies: '',
+  commsPocketMoney: '',
+  commsChildrenActivities: '',
+  commsTrips: '',
+  commsOther: '',
+  mortgage: '',
+  rent: '',
+  securedLoan: '',
+  councilTax: '',
+  gas: '',
+  electric: '',
+  water: '',
+  tvLicence: '',
+  buildingsInsurance: '',
+  contentsInsurance: '',
+  lifeInsurance: '',
+  healthInsurance: '',
+  carInsurance: '',
+  fuel: '',
+  carTax: '',
+  carMaintenance: '',
+  motServicing: '',
+  publicTransport: '',
+  parkingTolls: '',
+  childcare: '',
+  schoolTransport: '',
+  schoolUniforms: '',
+  childMaintenancePaid: '',
+  creditCards: '',
+  loans: '',
+  hpPcp: '',
+  overdraft: '',
+  storeCards: '',
+  cataloguePayments: '',
+  medical: '',
+  dentalOptical: '',
+  professionalFees: '',
+  unionFees: '',
+  otherEssential: '',
+};
+
 export default function App() {
   const [token, setToken] = useState<string>('');
   const [email, setEmail] = useState('admin@tmaccrm.local');
@@ -66,14 +165,16 @@ export default function App() {
   const [clientForm, setClientForm] = useState(emptyClientForm);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientTab, setClientTab] = useState<ClientTab>('overview');
   const [editForm, setEditForm] = useState(emptyClientForm);
+  const [incomeForm, setIncomeForm] = useState<Record<string, string>>(emptyIncomeData);
+  const [expenditureForm, setExpenditureForm] = useState<Record<string, string>>(emptyExpenditureData);
   const [newNote, setNewNote] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
-
     if (!term) return clients;
 
     return clients.filter((client) => {
@@ -92,6 +193,97 @@ export default function App() {
       return haystack.includes(term);
     });
   }, [clients, search]);
+
+  function money(value?: string) {
+    const num = Number(value || 0);
+    return Number.isFinite(num) ? num : 0;
+  }
+
+  function sumFields(source: Record<string, string>, fields: string[]) {
+    return fields.reduce((acc, key) => acc + money(source[key]), 0);
+  }
+
+  const totalIncome = useMemo(() => {
+    return sumFields(incomeForm, Object.keys(emptyIncomeData));
+  }, [incomeForm]);
+
+  const totalHousekeeping = useMemo(() => {
+    return sumFields(expenditureForm, [
+      'housekeepingFood',
+      'housekeepingCleaning',
+      'housekeepingPets',
+      'housekeepingSchoolMeals',
+      'housekeepingOther',
+    ]);
+  }, [expenditureForm]);
+
+  const totalPersonal = useMemo(() => {
+    return sumFields(expenditureForm, [
+      'personalClothing',
+      'personalFootwear',
+      'personalHairdressing',
+      'personalToiletries',
+      'personalLaundry',
+      'personalOther',
+    ]);
+  }, [expenditureForm]);
+
+  const totalComms = useMemo(() => {
+    return sumFields(expenditureForm, [
+      'commsLandline',
+      'commsMobile',
+      'commsInternet',
+      'commsTvPackage',
+      'commsEntertainment',
+      'commsHobbies',
+      'commsPocketMoney',
+      'commsChildrenActivities',
+      'commsTrips',
+      'commsOther',
+    ]);
+  }, [expenditureForm]);
+
+  const totalFixedExpenditure = useMemo(() => {
+    return sumFields(expenditureForm, [
+      'mortgage',
+      'rent',
+      'securedLoan',
+      'councilTax',
+      'gas',
+      'electric',
+      'water',
+      'tvLicence',
+      'buildingsInsurance',
+      'contentsInsurance',
+      'lifeInsurance',
+      'healthInsurance',
+      'carInsurance',
+      'fuel',
+      'carTax',
+      'carMaintenance',
+      'motServicing',
+      'publicTransport',
+      'parkingTolls',
+      'childcare',
+      'schoolTransport',
+      'schoolUniforms',
+      'childMaintenancePaid',
+      'creditCards',
+      'loans',
+      'hpPcp',
+      'overdraft',
+      'storeCards',
+      'cataloguePayments',
+      'medical',
+      'dentalOptical',
+      'professionalFees',
+      'unionFees',
+      'otherEssential',
+    ]);
+  }, [expenditureForm]);
+
+  const totalExpenditure = totalHousekeeping + totalPersonal + totalComms + totalFixedExpenditure;
+  const disposableIncome = totalIncome - totalExpenditure;
 
   async function login() {
     setError('');
@@ -145,7 +337,8 @@ export default function App() {
     const data = await response.json();
     setSelectedClient(data);
     setSelectedClientId(id);
-    populateEditForm(data);
+    setClientTab('overview');
+    populateClientWorkspace(data);
   }
 
   function toDateInputValue(value?: string | null) {
@@ -153,7 +346,7 @@ export default function App() {
     return new Date(value).toISOString().split('T')[0];
   }
 
-  function populateEditForm(client: Client) {
+  function populateClientWorkspace(client: Client) {
     setEditForm({
       firstName: client.firstName || '',
       lastName: client.lastName || '',
@@ -169,6 +362,16 @@ export default function App() {
       campaign: client.campaign || '',
       status: client.status || 'NEW_LEAD',
     });
+
+    setIncomeForm({
+      ...emptyIncomeData,
+      ...(client.metadataJson?.income || {}),
+    });
+
+    setExpenditureForm({
+      ...emptyExpenditureData,
+      ...(client.metadataJson?.expenditure || {}),
+    });
   }
 
   async function openClient(client: Client) {
@@ -176,6 +379,15 @@ export default function App() {
     setSuccess('');
     setError('');
     await loadClientDetail(client.id);
+  }
+
+  function closeClientRecord() {
+    setSelectedClientId(null);
+    setSelectedClient(null);
+    setClientTab('overview');
+    setNewNote('');
+    setSuccess('');
+    setError('');
   }
 
   async function createClient() {
@@ -215,7 +427,13 @@ export default function App() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify({
+        ...editForm,
+        metadataJson: {
+          income: incomeForm,
+          expenditure: expenditureForm,
+        },
+      }),
     });
 
     if (!response.ok) {
@@ -269,28 +487,25 @@ export default function App() {
       return;
     }
 
-    if (selectedClientId === id) {
-      setSelectedClientId(null);
-      setSelectedClient(null);
-      setEditForm(emptyClientForm);
-    }
-
+    closeClientRecord();
     await loadClients();
     setSuccess('Client deleted successfully.');
   }
 
   function updateClientForm(field: keyof typeof emptyClientForm, value: string) {
-    setClientForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setClientForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function updateEditForm(field: keyof typeof emptyClientForm, value: string) {
-    setEditForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateIncomeForm(field: string, value: string) {
+    setIncomeForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateExpenditureForm(field: string, value: string) {
+    setExpenditureForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function formatDate(value: string) {
@@ -418,14 +633,8 @@ export default function App() {
                 ) : (
                   clients.slice(0, 8).map((client) => (
                     <tr key={client.id}>
-                      <td>
-                        <strong>
-                          {client.firstName} {client.lastName}
-                        </strong>
-                      </td>
-                      <td>
-                        <span className="pill">{client.status.replaceAll('_', ' ')}</span>
-                      </td>
+                      <td><strong>{client.firstName} {client.lastName}</strong></td>
+                      <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
                       <td>{client.email || '-'}</td>
                       <td>{formatDate(client.createdAt)}</td>
                     </tr>
@@ -439,15 +648,489 @@ export default function App() {
     );
   }
 
- function renderTimeline() {
-  if (!selectedClient) return null;
+  function renderClientList() {
+    return (
+      <>
+        <header className="page-header premium-header">
+          <div>
+            <div className="eyebrow">Client Management</div>
+            <h2>Clients</h2>
+            <p>View and manage client records.</p>
+          </div>
+          <div className="header-actions">
+            <button className="secondary" onClick={() => loadClients()}>
+              Refresh list
+            </button>
+            <button
+              className="primary"
+              onClick={() => {
+                setShowAddClient((prev) => !prev);
+                setSuccess('');
+                setError('');
+              }}
+            >
+              {showAddClient ? 'Close form' : 'Add client'}
+            </button>
+          </div>
+        </header>
 
-  const notes = selectedClient.notes || [];
-  const activities = selectedClient.activities || [];
+        {showAddClient && (
+          <section className="card form-card premium-panel">
+            <div className="table-header">
+              <h3>Add client</h3>
+            </div>
 
-  return (
-    <>
-      <section className="card timeline-panel">
+            <div className="form-grid">
+              <div>
+                <label>First name</label>
+                <input value={clientForm.firstName} onChange={(e) => updateClientForm('firstName', e.target.value)} />
+              </div>
+              <div>
+                <label>Last name</label>
+                <input value={clientForm.lastName} onChange={(e) => updateClientForm('lastName', e.target.value)} />
+              </div>
+              <div>
+                <label>Email</label>
+                <input value={clientForm.email} onChange={(e) => updateClientForm('email', e.target.value)} />
+              </div>
+              <div>
+                <label>Mobile</label>
+                <input value={clientForm.mobile} onChange={(e) => updateClientForm('mobile', e.target.value)} />
+              </div>
+              <div>
+                <label>Date of birth</label>
+                <input type="date" value={clientForm.dob} onChange={(e) => updateClientForm('dob', e.target.value)} />
+              </div>
+              <div>
+                <label>Status</label>
+                <select value={clientForm.status} onChange={(e) => updateClientForm('status', e.target.value)}>
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
+              </div>
+              <div className="full-width">
+                <label>Address line 1</label>
+                <input value={clientForm.addressLine1} onChange={(e) => updateClientForm('addressLine1', e.target.value)} />
+              </div>
+              <div className="full-width">
+                <label>Address line 2</label>
+                <input value={clientForm.addressLine2} onChange={(e) => updateClientForm('addressLine2', e.target.value)} />
+              </div>
+              <div>
+                <label>City / Town</label>
+                <input value={clientForm.city} onChange={(e) => updateClientForm('city', e.target.value)} />
+              </div>
+              <div>
+                <label>County</label>
+                <input value={clientForm.county} onChange={(e) => updateClientForm('county', e.target.value)} />
+              </div>
+              <div>
+                <label>Postcode</label>
+                <input value={clientForm.postcode} onChange={(e) => updateClientForm('postcode', e.target.value)} />
+              </div>
+              <div>
+                <label>Source</label>
+                <input value={clientForm.source} onChange={(e) => updateClientForm('source', e.target.value)} />
+              </div>
+              <div>
+                <label>Campaign</label>
+                <input value={clientForm.campaign} onChange={(e) => updateClientForm('campaign', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button className="secondary" onClick={() => setClientForm(emptyClientForm)}>
+                Clear
+              </button>
+              <button className="primary" onClick={createClient}>
+                Save client
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="card table-card premium-panel">
+          <div className="table-header">
+            <h3>Client list</h3>
+            <div className="table-tools">
+              <input
+                className="search-input"
+                placeholder="Search by name, email, mobile or postcode"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <span>{filteredClients.length} records</span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>Postcode</th>
+                <th>Status</th>
+                <th>Date Added</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredClients.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>No clients found.</td>
+                </tr>
+              ) : (
+                filteredClients.map((client) => (
+                  <tr key={client.id} className="clickable-row" onClick={() => openClient(client)}>
+                    <td><strong>{client.firstName} {client.lastName}</strong></td>
+                    <td>{client.email || '-'}</td>
+                    <td>{client.mobile || '-'}</td>
+                    <td>{client.postcode || '-'}</td>
+                    <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
+                    <td>{formatDate(client.createdAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderOverviewTab() {
+    if (!selectedClient) return null;
+
+    return (
+      <section className="card form-card polished-panel premium-panel">
+        <div className="client-header premium-client-header">
+          <div>
+            <div className="client-title-row">
+              <h3>{selectedClient.firstName} {selectedClient.lastName}</h3>
+              <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
+            </div>
+
+            <div className="client-meta-grid">
+              <div>
+                <span className="meta-label">Date added</span>
+                <strong>{formatDate(selectedClient.createdAt)}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Date of birth</span>
+                <strong>{formatDob(selectedClient.dob)}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Email</span>
+                <strong>{selectedClient.email || '-'}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Mobile</span>
+                <strong>{selectedClient.mobile || '-'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="client-header-actions">
+            <button className="secondary" onClick={closeClientRecord}>
+              Back to client list
+            </button>
+            <button className="secondary" onClick={() => populateClientWorkspace(selectedClient)}>
+              Reset
+            </button>
+            <button className="primary" onClick={saveClientChanges}>
+              Save changes
+            </button>
+            <button
+              className="danger-button"
+              onClick={() => deleteClient(selectedClient.id, `${selectedClient.firstName} ${selectedClient.lastName}`)}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <div className="detail-sections">
+          <section className="detail-section">
+            <h4>Personal details</h4>
+            <div className="form-grid">
+              <div>
+                <label>First name</label>
+                <input value={editForm.firstName} onChange={(e) => updateEditForm('firstName', e.target.value)} />
+              </div>
+              <div>
+                <label>Last name</label>
+                <input value={editForm.lastName} onChange={(e) => updateEditForm('lastName', e.target.value)} />
+              </div>
+              <div>
+                <label>Email</label>
+                <input value={editForm.email} onChange={(e) => updateEditForm('email', e.target.value)} />
+              </div>
+              <div>
+                <label>Mobile</label>
+                <input value={editForm.mobile} onChange={(e) => updateEditForm('mobile', e.target.value)} />
+              </div>
+              <div>
+                <label>Date of birth</label>
+                <input type="date" value={editForm.dob} onChange={(e) => updateEditForm('dob', e.target.value)} />
+              </div>
+              <div>
+                <label>Status</label>
+                <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Address</h4>
+            <div className="form-grid">
+              <div className="full-width">
+                <label>Address line 1</label>
+                <input value={editForm.addressLine1} onChange={(e) => updateEditForm('addressLine1', e.target.value)} />
+              </div>
+              <div className="full-width">
+                <label>Address line 2</label>
+                <input value={editForm.addressLine2} onChange={(e) => updateEditForm('addressLine2', e.target.value)} />
+              </div>
+              <div>
+                <label>City / Town</label>
+                <input value={editForm.city} onChange={(e) => updateEditForm('city', e.target.value)} />
+              </div>
+              <div>
+                <label>County</label>
+                <input value={editForm.county} onChange={(e) => updateEditForm('county', e.target.value)} />
+              </div>
+              <div>
+                <label>Postcode</label>
+                <input value={editForm.postcode} onChange={(e) => updateEditForm('postcode', e.target.value)} />
+              </div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Case details</h4>
+            <div className="form-grid">
+              <div>
+                <label>Source</label>
+                <input value={editForm.source} onChange={(e) => updateEditForm('source', e.target.value)} />
+              </div>
+              <div>
+                <label>Campaign</label>
+                <input value={editForm.campaign} onChange={(e) => updateEditForm('campaign', e.target.value)} />
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    );
+  }
+
+  function renderIncomeTab() {
+    return (
+      <section className="card premium-panel tab-panel">
+        <div className="detail-sections">
+          <section className="detail-section">
+            <h4>Employment income</h4>
+            <div className="form-grid">
+              <div><label>Client salary</label><input value={incomeForm.clientSalary} onChange={(e) => updateIncomeForm('clientSalary', e.target.value)} /></div>
+              <div><label>Partner salary</label><input value={incomeForm.partnerSalary} onChange={(e) => updateIncomeForm('partnerSalary', e.target.value)} /></div>
+              <div><label>Client overtime</label><input value={incomeForm.clientOvertime} onChange={(e) => updateIncomeForm('clientOvertime', e.target.value)} /></div>
+              <div><label>Partner overtime</label><input value={incomeForm.partnerOvertime} onChange={(e) => updateIncomeForm('partnerOvertime', e.target.value)} /></div>
+              <div><label>Client bonus / commission</label><input value={incomeForm.clientBonus} onChange={(e) => updateIncomeForm('clientBonus', e.target.value)} /></div>
+              <div><label>Partner bonus / commission</label><input value={incomeForm.partnerBonus} onChange={(e) => updateIncomeForm('partnerBonus', e.target.value)} /></div>
+              <div><label>Client self-employed</label><input value={incomeForm.clientSelfEmployed} onChange={(e) => updateIncomeForm('clientSelfEmployed', e.target.value)} /></div>
+              <div><label>Partner self-employed</label><input value={incomeForm.partnerSelfEmployed} onChange={(e) => updateIncomeForm('partnerSelfEmployed', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Benefits</h4>
+            <div className="form-grid">
+              <div><label>Universal Credit</label><input value={incomeForm.universalCredit} onChange={(e) => updateIncomeForm('universalCredit', e.target.value)} /></div>
+              <div><label>Child Benefit</label><input value={incomeForm.childBenefit} onChange={(e) => updateIncomeForm('childBenefit', e.target.value)} /></div>
+              <div><label>Working Tax Credit</label><input value={incomeForm.workingTaxCredit} onChange={(e) => updateIncomeForm('workingTaxCredit', e.target.value)} /></div>
+              <div><label>Child Tax Credit</label><input value={incomeForm.childTaxCredit} onChange={(e) => updateIncomeForm('childTaxCredit', e.target.value)} /></div>
+              <div><label>PIP</label><input value={incomeForm.pip} onChange={(e) => updateIncomeForm('pip', e.target.value)} /></div>
+              <div><label>DLA</label><input value={incomeForm.dla} onChange={(e) => updateIncomeForm('dla', e.target.value)} /></div>
+              <div><label>Attendance Allowance</label><input value={incomeForm.attendanceAllowance} onChange={(e) => updateIncomeForm('attendanceAllowance', e.target.value)} /></div>
+              <div><label>Carer’s Allowance</label><input value={incomeForm.carersAllowance} onChange={(e) => updateIncomeForm('carersAllowance', e.target.value)} /></div>
+              <div><label>ESA</label><input value={incomeForm.esa} onChange={(e) => updateIncomeForm('esa', e.target.value)} /></div>
+              <div><label>JSA</label><input value={incomeForm.jsa} onChange={(e) => updateIncomeForm('jsa', e.target.value)} /></div>
+              <div><label>Housing Benefit</label><input value={incomeForm.housingBenefit} onChange={(e) => updateIncomeForm('housingBenefit', e.target.value)} /></div>
+              <div><label>Pension Credit</label><input value={incomeForm.pensionCredit} onChange={(e) => updateIncomeForm('pensionCredit', e.target.value)} /></div>
+              <div><label>State Pension</label><input value={incomeForm.statePension} onChange={(e) => updateIncomeForm('statePension', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Other income</h4>
+            <div className="form-grid">
+              <div><label>Maintenance received</label><input value={incomeForm.maintenanceReceived} onChange={(e) => updateIncomeForm('maintenanceReceived', e.target.value)} /></div>
+              <div><label>Board / lodger income</label><input value={incomeForm.boardIncome} onChange={(e) => updateIncomeForm('boardIncome', e.target.value)} /></div>
+              <div><label>Pension income</label><input value={incomeForm.pensionIncome} onChange={(e) => updateIncomeForm('pensionIncome', e.target.value)} /></div>
+              <div><label>Rental income</label><input value={incomeForm.rentalIncome} onChange={(e) => updateIncomeForm('rentalIncome', e.target.value)} /></div>
+              <div><label>Family support</label><input value={incomeForm.familySupport} onChange={(e) => updateIncomeForm('familySupport', e.target.value)} /></div>
+              <div><label>Other income 1</label><input value={incomeForm.otherIncome1} onChange={(e) => updateIncomeForm('otherIncome1', e.target.value)} /></div>
+              <div><label>Other income 2</label><input value={incomeForm.otherIncome2} onChange={(e) => updateIncomeForm('otherIncome2', e.target.value)} /></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    );
+  }
+
+  function renderExpenditureTab() {
+    return (
+      <section className="card premium-panel tab-panel">
+        <div className="detail-sections">
+          <section className="detail-section">
+            <h4>Household setup</h4>
+            <div className="form-grid">
+              <div><label>Adults</label><input value={expenditureForm.adults} onChange={(e) => updateExpenditureForm('adults', e.target.value)} /></div>
+              <div><label>Children under 16</label><input value={expenditureForm.childrenUnder16} onChange={(e) => updateExpenditureForm('childrenUnder16', e.target.value)} /></div>
+              <div><label>Children 16-18</label><input value={expenditureForm.children16to18} onChange={(e) => updateExpenditureForm('children16to18', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>SFS Housekeeping</h4>
+            <div className="form-grid">
+              <div><label>Food</label><input value={expenditureForm.housekeepingFood} onChange={(e) => updateExpenditureForm('housekeepingFood', e.target.value)} /></div>
+              <div><label>Cleaning</label><input value={expenditureForm.housekeepingCleaning} onChange={(e) => updateExpenditureForm('housekeepingCleaning', e.target.value)} /></div>
+              <div><label>Pets</label><input value={expenditureForm.housekeepingPets} onChange={(e) => updateExpenditureForm('housekeepingPets', e.target.value)} /></div>
+              <div><label>School meals</label><input value={expenditureForm.housekeepingSchoolMeals} onChange={(e) => updateExpenditureForm('housekeepingSchoolMeals', e.target.value)} /></div>
+              <div><label>Other housekeeping</label><input value={expenditureForm.housekeepingOther} onChange={(e) => updateExpenditureForm('housekeepingOther', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>SFS Personal</h4>
+            <div className="form-grid">
+              <div><label>Clothing</label><input value={expenditureForm.personalClothing} onChange={(e) => updateExpenditureForm('personalClothing', e.target.value)} /></div>
+              <div><label>Footwear</label><input value={expenditureForm.personalFootwear} onChange={(e) => updateExpenditureForm('personalFootwear', e.target.value)} /></div>
+              <div><label>Hairdressing</label><input value={expenditureForm.personalHairdressing} onChange={(e) => updateExpenditureForm('personalHairdressing', e.target.value)} /></div>
+              <div><label>Toiletries</label><input value={expenditureForm.personalToiletries} onChange={(e) => updateExpenditureForm('personalToiletries', e.target.value)} /></div>
+              <div><label>Laundry</label><input value={expenditureForm.personalLaundry} onChange={(e) => updateExpenditureForm('personalLaundry', e.target.value)} /></div>
+              <div><label>Other personal</label><input value={expenditureForm.personalOther} onChange={(e) => updateExpenditureForm('personalOther', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>SFS Comms & Leisure</h4>
+            <div className="form-grid">
+              <div><label>Landline</label><input value={expenditureForm.commsLandline} onChange={(e) => updateExpenditureForm('commsLandline', e.target.value)} /></div>
+              <div><label>Mobile</label><input value={expenditureForm.commsMobile} onChange={(e) => updateExpenditureForm('commsMobile', e.target.value)} /></div>
+              <div><label>Internet</label><input value={expenditureForm.commsInternet} onChange={(e) => updateExpenditureForm('commsInternet', e.target.value)} /></div>
+              <div><label>TV package / Sky</label><input value={expenditureForm.commsTvPackage} onChange={(e) => updateExpenditureForm('commsTvPackage', e.target.value)} /></div>
+              <div><label>Entertainment</label><input value={expenditureForm.commsEntertainment} onChange={(e) => updateExpenditureForm('commsEntertainment', e.target.value)} /></div>
+              <div><label>Hobbies</label><input value={expenditureForm.commsHobbies} onChange={(e) => updateExpenditureForm('commsHobbies', e.target.value)} /></div>
+              <div><label>Pocket money</label><input value={expenditureForm.commsPocketMoney} onChange={(e) => updateExpenditureForm('commsPocketMoney', e.target.value)} /></div>
+              <div><label>Children’s activities</label><input value={expenditureForm.commsChildrenActivities} onChange={(e) => updateExpenditureForm('commsChildrenActivities', e.target.value)} /></div>
+              <div><label>Trips / days out</label><input value={expenditureForm.commsTrips} onChange={(e) => updateExpenditureForm('commsTrips', e.target.value)} /></div>
+              <div><label>Other comms & leisure</label><input value={expenditureForm.commsOther} onChange={(e) => updateExpenditureForm('commsOther', e.target.value)} /></div>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>Fixed / Non-SFS expenditure</h4>
+            <div className="form-grid">
+              <div><label>Mortgage</label><input value={expenditureForm.mortgage} onChange={(e) => updateExpenditureForm('mortgage', e.target.value)} /></div>
+              <div><label>Rent</label><input value={expenditureForm.rent} onChange={(e) => updateExpenditureForm('rent', e.target.value)} /></div>
+              <div><label>Secured loan</label><input value={expenditureForm.securedLoan} onChange={(e) => updateExpenditureForm('securedLoan', e.target.value)} /></div>
+              <div><label>Council tax</label><input value={expenditureForm.councilTax} onChange={(e) => updateExpenditureForm('councilTax', e.target.value)} /></div>
+              <div><label>Gas</label><input value={expenditureForm.gas} onChange={(e) => updateExpenditureForm('gas', e.target.value)} /></div>
+              <div><label>Electric</label><input value={expenditureForm.electric} onChange={(e) => updateExpenditureForm('electric', e.target.value)} /></div>
+              <div><label>Water</label><input value={expenditureForm.water} onChange={(e) => updateExpenditureForm('water', e.target.value)} /></div>
+              <div><label>TV licence</label><input value={expenditureForm.tvLicence} onChange={(e) => updateExpenditureForm('tvLicence', e.target.value)} /></div>
+              <div><label>Buildings insurance</label><input value={expenditureForm.buildingsInsurance} onChange={(e) => updateExpenditureForm('buildingsInsurance', e.target.value)} /></div>
+              <div><label>Contents insurance</label><input value={expenditureForm.contentsInsurance} onChange={(e) => updateExpenditureForm('contentsInsurance', e.target.value)} /></div>
+              <div><label>Life insurance</label><input value={expenditureForm.lifeInsurance} onChange={(e) => updateExpenditureForm('lifeInsurance', e.target.value)} /></div>
+              <div><label>Health insurance</label><input value={expenditureForm.healthInsurance} onChange={(e) => updateExpenditureForm('healthInsurance', e.target.value)} /></div>
+              <div><label>Car insurance</label><input value={expenditureForm.carInsurance} onChange={(e) => updateExpenditureForm('carInsurance', e.target.value)} /></div>
+              <div><label>Fuel</label><input value={expenditureForm.fuel} onChange={(e) => updateExpenditureForm('fuel', e.target.value)} /></div>
+              <div><label>Car tax</label><input value={expenditureForm.carTax} onChange={(e) => updateExpenditureForm('carTax', e.target.value)} /></div>
+              <div><label>Car maintenance</label><input value={expenditureForm.carMaintenance} onChange={(e) => updateExpenditureForm('carMaintenance', e.target.value)} /></div>
+              <div><label>MOT / servicing</label><input value={expenditureForm.motServicing} onChange={(e) => updateExpenditureForm('motServicing', e.target.value)} /></div>
+              <div><label>Public transport</label><input value={expenditureForm.publicTransport} onChange={(e) => updateExpenditureForm('publicTransport', e.target.value)} /></div>
+              <div><label>Parking / tolls</label><input value={expenditureForm.parkingTolls} onChange={(e) => updateExpenditureForm('parkingTolls', e.target.value)} /></div>
+              <div><label>Childcare</label><input value={expenditureForm.childcare} onChange={(e) => updateExpenditureForm('childcare', e.target.value)} /></div>
+              <div><label>School transport</label><input value={expenditureForm.schoolTransport} onChange={(e) => updateExpenditureForm('schoolTransport', e.target.value)} /></div>
+              <div><label>School uniforms</label><input value={expenditureForm.schoolUniforms} onChange={(e) => updateExpenditureForm('schoolUniforms', e.target.value)} /></div>
+              <div><label>Child maintenance paid</label><input value={expenditureForm.childMaintenancePaid} onChange={(e) => updateExpenditureForm('childMaintenancePaid', e.target.value)} /></div>
+              <div><label>Credit cards</label><input value={expenditureForm.creditCards} onChange={(e) => updateExpenditureForm('creditCards', e.target.value)} /></div>
+              <div><label>Loans</label><input value={expenditureForm.loans} onChange={(e) => updateExpenditureForm('loans', e.target.value)} /></div>
+              <div><label>HP / PCP</label><input value={expenditureForm.hpPcp} onChange={(e) => updateExpenditureForm('hpPcp', e.target.value)} /></div>
+              <div><label>Overdraft</label><input value={expenditureForm.overdraft} onChange={(e) => updateExpenditureForm('overdraft', e.target.value)} /></div>
+              <div><label>Store cards</label><input value={expenditureForm.storeCards} onChange={(e) => updateExpenditureForm('storeCards', e.target.value)} /></div>
+              <div><label>Catalogue payments</label><input value={expenditureForm.cataloguePayments} onChange={(e) => updateExpenditureForm('cataloguePayments', e.target.value)} /></div>
+              <div><label>Medical / prescriptions</label><input value={expenditureForm.medical} onChange={(e) => updateExpenditureForm('medical', e.target.value)} /></div>
+              <div><label>Dental / optical</label><input value={expenditureForm.dentalOptical} onChange={(e) => updateExpenditureForm('dentalOptical', e.target.value)} /></div>
+              <div><label>Professional fees</label><input value={expenditureForm.professionalFees} onChange={(e) => updateExpenditureForm('professionalFees', e.target.value)} /></div>
+              <div><label>Union fees</label><input value={expenditureForm.unionFees} onChange={(e) => updateExpenditureForm('unionFees', e.target.value)} /></div>
+              <div><label>Other essential</label><input value={expenditureForm.otherEssential} onChange={(e) => updateExpenditureForm('otherEssential', e.target.value)} /></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    );
+  }
+
+  function renderSummaryTab() {
+    return (
+      <section className="card premium-panel tab-panel">
+        <div className="summary-grid">
+          <div className="summary-box">
+            <span>Total income</span>
+            <strong>£{totalIncome.toFixed(2)}</strong>
+          </div>
+          <div className="summary-box">
+            <span>SFS housekeeping</span>
+            <strong>£{totalHousekeeping.toFixed(2)}</strong>
+          </div>
+          <div className="summary-box">
+            <span>SFS personal</span>
+            <strong>£{totalPersonal.toFixed(2)}</strong>
+          </div>
+          <div className="summary-box">
+            <span>SFS comms & leisure</span>
+            <strong>£{totalComms.toFixed(2)}</strong>
+          </div>
+          <div className="summary-box">
+            <span>Fixed expenditure</span>
+            <strong>£{totalFixedExpenditure.toFixed(2)}</strong>
+          </div>
+          <div className="summary-box highlight">
+            <span>Disposable income</span>
+            <strong>£{disposableIncome.toFixed(2)}</strong>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderNotesTab() {
+    if (!selectedClient) return null;
+
+    const notes = selectedClient.notes || [];
+
+    return (
+      <section className="card timeline-panel premium-panel">
         <div className="table-header">
           <h3>Notes</h3>
           <span>{notes.length} entries</span>
@@ -487,459 +1170,87 @@ export default function App() {
           )}
         </div>
       </section>
+    );
+  }
 
-      <section className="card timeline-panel">
+  function renderActivityTab() {
+    if (!selectedClient) return null;
+
+    const activities = selectedClient.activities || [];
+
+    return (
+      <section className="card compact-activity-panel premium-panel">
         <div className="table-header">
           <h3>Activity</h3>
           <span>{activities.length} entries</span>
         </div>
 
-        <div className="timeline-list">
+        <div className="compact-activity-list">
           {activities.length === 0 ? (
             <p className="muted-text">No activity yet.</p>
           ) : (
             activities.map((activity) => (
-              <div key={activity.id} className="timeline-item activity">
-                <div className="timeline-dot" />
-                <div className="timeline-content">
-                  <div className="timeline-head">
-                    <strong>{activity.type.replaceAll('_', ' ')}</strong>
-                    <span>{formatDateTime(activity.createdAt)}</span>
-                  </div>
-                  <p>{activity.description}</p>
-                </div>
+              <div key={activity.id} className="compact-activity-item">
+                <div className="compact-activity-type">{activity.type.replaceAll('_', ' ')}</div>
+                <div className="compact-activity-description">{activity.description}</div>
+                <div className="compact-activity-time">{formatDateTime(activity.createdAt)}</div>
               </div>
             ))
           )}
         </div>
       </section>
-    </>
-  );
-}
-
-  function renderClientEditPanel() {
-    if (!selectedClient) {
-      return (
-        <section className="card form-card polished-panel">
-          <h3>Client details</h3>
-          <p>Select a client from the list to view and amend their record.</p>
-        </section>
-      );
-    }
-
-    return (
-      <>
-        <section className="card form-card polished-panel">
-          <div className="client-header premium-client-header">
-            <div>
-              <div className="client-title-row">
-                <h3>
-                  {selectedClient.firstName} {selectedClient.lastName}
-                </h3>
-                <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
-              </div>
-
-              <div className="client-meta-grid">
-                <div>
-                  <span className="meta-label">Date added</span>
-                  <strong>{formatDate(selectedClient.createdAt)}</strong>
-                </div>
-                <div>
-                  <span className="meta-label">Date of birth</span>
-                  <strong>{formatDob(selectedClient.dob)}</strong>
-                </div>
-                <div>
-                  <span className="meta-label">Email</span>
-                  <strong>{selectedClient.email || '-'}</strong>
-                </div>
-                <div>
-                  <span className="meta-label">Mobile</span>
-                  <strong>{selectedClient.mobile || '-'}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="client-header-actions">
-              <button className="secondary" onClick={() => populateEditForm(selectedClient)}>
-                Reset
-              </button>
-              <button className="primary" onClick={saveClientChanges}>
-                Save changes
-              </button>
-              <button
-                className="danger-button"
-                onClick={() =>
-                  deleteClient(
-                    selectedClient.id,
-                    `${selectedClient.firstName} ${selectedClient.lastName}`
-                  )
-                }
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-
-          <div className="detail-sections">
-            <section className="detail-section">
-              <h4>Personal details</h4>
-              <div className="form-grid">
-                <div>
-                  <label>First name</label>
-                  <input
-                    value={editForm.firstName}
-                    onChange={(e) => updateEditForm('firstName', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Last name</label>
-                  <input
-                    value={editForm.lastName}
-                    onChange={(e) => updateEditForm('lastName', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Email</label>
-                  <input
-                    value={editForm.email}
-                    onChange={(e) => updateEditForm('email', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Mobile</label>
-                  <input
-                    value={editForm.mobile}
-                    onChange={(e) => updateEditForm('mobile', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Date of birth</label>
-                  <input
-                    type="date"
-                    value={editForm.dob}
-                    onChange={(e) => updateEditForm('dob', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Status</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => updateEditForm('status', e.target.value)}
-                  >
-                    <option value="NEW_LEAD">New Lead</option>
-                    <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                    <option value="QUALIFIED">Qualified</option>
-                    <option value="DOCS_REQUESTED">Docs Requested</option>
-                    <option value="DOCS_RECEIVED">Docs Received</option>
-                    <option value="SUBMITTED">Submitted</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="LOST">Lost</option>
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <section className="detail-section">
-              <h4>Address</h4>
-              <div className="form-grid">
-                <div className="full-width">
-                  <label>Address line 1</label>
-                  <input
-                    value={editForm.addressLine1}
-                    onChange={(e) => updateEditForm('addressLine1', e.target.value)}
-                  />
-                </div>
-
-                <div className="full-width">
-                  <label>Address line 2</label>
-                  <input
-                    value={editForm.addressLine2}
-                    onChange={(e) => updateEditForm('addressLine2', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>City / Town</label>
-                  <input
-                    value={editForm.city}
-                    onChange={(e) => updateEditForm('city', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>County</label>
-                  <input
-                    value={editForm.county}
-                    onChange={(e) => updateEditForm('county', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Postcode</label>
-                  <input
-                    value={editForm.postcode}
-                    onChange={(e) => updateEditForm('postcode', e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="detail-section">
-              <h4>Case details</h4>
-              <div className="form-grid">
-                <div>
-                  <label>Source</label>
-                  <input
-                    value={editForm.source}
-                    onChange={(e) => updateEditForm('source', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label>Campaign</label>
-                  <input
-                    value={editForm.campaign}
-                    onChange={(e) => updateEditForm('campaign', e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        {renderTimeline()}
-      </>
     );
   }
 
-  function renderClients() {
+  function renderClientRecord() {
+    if (!selectedClient) return null;
+
     return (
       <>
         <header className="page-header premium-header">
           <div>
-            <div className="eyebrow">Client Management</div>
-            <h2>Clients</h2>
-            <p>View, edit and track client records.</p>
+            <div className="eyebrow">Client Record</div>
+            <h2>{selectedClient.firstName} {selectedClient.lastName}</h2>
+            <p>Full client workspace and case file.</p>
           </div>
           <div className="header-actions">
-            <button className="secondary" onClick={() => loadClients()}>
-              Refresh list
+            <button className="secondary" onClick={closeClientRecord}>
+              Back to client list
             </button>
-            <button
-              className="primary"
-              onClick={() => {
-                setShowAddClient((prev) => !prev);
-                setSelectedClientId(null);
-                setSelectedClient(null);
-                setSuccess('');
-                setError('');
-              }}
-            >
-              {showAddClient ? 'Close form' : 'Add client'}
+            <button className="primary" onClick={saveClientChanges}>
+              Save changes
             </button>
           </div>
         </header>
 
-        {showAddClient && (
-          <section className="card form-card premium-panel">
-            <div className="table-header">
-              <h3>Add client</h3>
-            </div>
-
-            <div className="form-grid">
-              <div>
-                <label>First name</label>
-                <input
-                  value={clientForm.firstName}
-                  onChange={(e) => updateClientForm('firstName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Last name</label>
-                <input
-                  value={clientForm.lastName}
-                  onChange={(e) => updateClientForm('lastName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Email</label>
-                <input
-                  value={clientForm.email}
-                  onChange={(e) => updateClientForm('email', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Mobile</label>
-                <input
-                  value={clientForm.mobile}
-                  onChange={(e) => updateClientForm('mobile', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Date of birth</label>
-                <input
-                  type="date"
-                  value={clientForm.dob}
-                  onChange={(e) => updateClientForm('dob', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Status</label>
-                <select
-                  value={clientForm.status}
-                  onChange={(e) => updateClientForm('status', e.target.value)}
-                >
-                  <option value="NEW_LEAD">New Lead</option>
-                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                  <option value="QUALIFIED">Qualified</option>
-                  <option value="DOCS_REQUESTED">Docs Requested</option>
-                  <option value="DOCS_RECEIVED">Docs Received</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="LOST">Lost</option>
-                </select>
-              </div>
-
-              <div className="full-width">
-                <label>Address line 1</label>
-                <input
-                  value={clientForm.addressLine1}
-                  onChange={(e) => updateClientForm('addressLine1', e.target.value)}
-                />
-              </div>
-
-              <div className="full-width">
-                <label>Address line 2</label>
-                <input
-                  value={clientForm.addressLine2}
-                  onChange={(e) => updateClientForm('addressLine2', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>City / Town</label>
-                <input
-                  value={clientForm.city}
-                  onChange={(e) => updateClientForm('city', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>County</label>
-                <input
-                  value={clientForm.county}
-                  onChange={(e) => updateClientForm('county', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Postcode</label>
-                <input
-                  value={clientForm.postcode}
-                  onChange={(e) => updateClientForm('postcode', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Source</label>
-                <input
-                  value={clientForm.source}
-                  onChange={(e) => updateClientForm('source', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Campaign</label>
-                <input
-                  value={clientForm.campaign}
-                  onChange={(e) => updateClientForm('campaign', e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button className="secondary" onClick={() => setClientForm(emptyClientForm)}>
-                Clear
+        <section className="card client-record-shell premium-panel">
+          <div className="client-tabs">
+            {[
+              ['overview', 'Overview'],
+              ['income', 'Income'],
+              ['expenditure', 'Expenditure'],
+              ['summary', 'I&E + Disposable Income'],
+              ['notes', 'Notes'],
+              ['activity', 'Activity'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={`client-tab ${clientTab === key ? 'active' : ''}`}
+                onClick={() => setClientTab(key as ClientTab)}
+              >
+                {label}
               </button>
-              <button className="primary" onClick={createClient}>
-                Save client
-              </button>
-            </div>
-          </section>
-        )}
+            ))}
+          </div>
 
-        <section className="clients-layout premium-clients-layout">
-          <section className="card table-card premium-panel">
-            <div className="table-header">
-              <h3>Client list</h3>
-              <div className="table-tools">
-                <input
-                  className="search-input"
-                  placeholder="Search by name, email, mobile or postcode"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                <span>{filteredClients.length} records</span>
-              </div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Mobile</th>
-                  <th>Postcode</th>
-                  <th>Status</th>
-                  <th>Date Added</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredClients.length === 0 ? (
-                  <tr>
-                    <td colSpan={6}>No clients found.</td>
-                  </tr>
-                ) : (
-                  filteredClients.map((client) => (
-                    <tr
-                      key={client.id}
-                      className={`clickable-row ${
-                        selectedClientId === client.id ? 'selected-row' : ''
-                      }`}
-                      onClick={() => openClient(client)}
-                    >
-                      <td>
-                        <strong>
-                          {client.firstName} {client.lastName}
-                        </strong>
-                      </td>
-                      <td>{client.email || '-'}</td>
-                      <td>{client.mobile || '-'}</td>
-                      <td>{client.postcode || '-'}</td>
-                      <td>
-                        <span className="pill">{client.status.replaceAll('_', ' ')}</span>
-                      </td>
-                      <td>{formatDate(client.createdAt)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
-
-          <div className="client-right-column">{renderClientEditPanel()}</div>
+          <div className="client-tab-content">
+            {clientTab === 'overview' && renderOverviewTab()}
+            {clientTab === 'income' && renderIncomeTab()}
+            {clientTab === 'expenditure' && renderExpenditureTab()}
+            {clientTab === 'summary' && renderSummaryTab()}
+            {clientTab === 'notes' && renderNotesTab()}
+            {clientTab === 'activity' && renderActivityTab()}
+          </div>
         </section>
       </>
     );
@@ -966,34 +1277,19 @@ export default function App() {
         </div>
 
         <nav className="nav">
-          <button
-            className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setView('dashboard')}
-          >
+          <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}>
             Dashboard
           </button>
-          <button
-            className={`nav-item ${view === 'clients' ? 'active' : ''}`}
-            onClick={() => setView('clients')}
-          >
+          <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}>
             Clients
           </button>
-          <button
-            className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
-            onClick={() => setView('tasks')}
-          >
+          <button className={`nav-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => setView('tasks')}>
             Tasks
           </button>
-          <button
-            className={`nav-item ${view === 'reporting' ? 'active' : ''}`}
-            onClick={() => setView('reporting')}
-          >
+          <button className={`nav-item ${view === 'reporting' ? 'active' : ''}`} onClick={() => setView('reporting')}>
             Reporting
           </button>
-          <button
-            className={`nav-item ${view === 'admin' ? 'active' : ''}`}
-            onClick={() => setView('admin')}
-          >
+          <button className={`nav-item ${view === 'admin' ? 'active' : ''}`} onClick={() => setView('admin')}>
             Admin
           </button>
 
@@ -1024,14 +1320,8 @@ export default function App() {
             <label>Email</label>
             <input value={email} onChange={(e) => setEmail(e.target.value)} />
             <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button className="primary" onClick={login}>
-              Log in
-            </button>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button className="primary" onClick={login}>Log in</button>
             {error && <p className="error">{error}</p>}
           </section>
         ) : (
@@ -1040,7 +1330,7 @@ export default function App() {
             {success && <p className="success inline-success">{success}</p>}
 
             {view === 'dashboard' && renderDashboard()}
-            {view === 'clients' && renderClients()}
+            {view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
             {view === 'tasks' && renderPlaceholder('Tasks')}
             {view === 'reporting' && renderPlaceholder('Reporting')}
             {view === 'admin' && renderPlaceholder('Admin')}
@@ -1049,108 +1339,4 @@ export default function App() {
       </main>
     </div>
   );
-}
-.client-record-shell {
-  padding: 0;
-  overflow: hidden;
-}
-
-.client-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #fcfcff 0%, #f7f7fb 100%);
-  overflow-x: auto;
-}
-
-.client-tab {
-  border: none;
-  background: transparent;
-  padding: 16px 20px;
-  font-weight: 600;
-  color: #4b5563;
-  white-space: nowrap;
-}
-
-.client-tab.active {
-  color: #111827;
-  background: white;
-  border-bottom: 3px solid #6d28d9;
-}
-
-.client-tab-content {
-  padding: 22px;
-}
-
-.tab-panel {
-  padding: 20px;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.summary-box {
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 18px;
-  background: #fff;
-}
-
-.summary-box span {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.summary-box strong {
-  font-size: 28px;
-}
-
-.summary-box.highlight {
-  background: linear-gradient(180deg, #f4fdf7 0%, #eefbf3 100%);
-}
-
-.compact-activity-panel {
-  padding: 18px;
-}
-
-.compact-activity-list {
-  display: grid;
-  gap: 10px;
-}
-
-.compact-activity-item {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: #fff;
-}
-
-.compact-activity-type {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #6d28d9;
-  margin-bottom: 4px;
-}
-
-.compact-activity-description {
-  font-size: 14px;
-  color: #111827;
-  margin-bottom: 4px;
-}
-
-.compact-activity-time {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-@media (max-width: 980px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
 }
