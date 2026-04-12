@@ -1416,7 +1416,54 @@ function renderSummaryTab() {
     </section>
   );
 }
+function renderNotesTab() {
+  if (!selectedClient) return null;
 
+  const notes = selectedClient.notes || [];
+
+  return (
+    <section className="card timeline-panel premium-panel">
+      <div className="table-header">
+        <h3>Notes</h3>
+        <span>{notes.length} entries</span>
+      </div>
+
+      <div className="note-entry-box">
+        <label>Add note</label>
+        <textarea
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          placeholder="Add a note to the client record"
+          rows={4}
+        />
+        <div className="form-actions">
+          <button className="primary" onClick={addNote}>
+            Save note
+          </button>
+        </div>
+      </div>
+
+      <div className="timeline-list">
+        {notes.length === 0 ? (
+          <p className="muted-text">No notes yet.</p>
+        ) : (
+          notes.map((note) => (
+            <div key={note.id} className="timeline-item note">
+              <div className="timeline-dot" />
+              <div className="timeline-content">
+                <div className="timeline-head">
+                  <strong>Internal note</strong>
+                  <span>{formatDateTime(note.createdAt)}</span>
+                </div>
+                <p>{note.body}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
   function renderActivityTab() {
     if (!selectedClient) return null;
 
@@ -1492,7 +1539,7 @@ function renderSummaryTab() {
             {clientTab === 'income' && renderIncomeTab()}
             {clientTab === 'expenditure' && renderExpenditureTab()}
             {clientTab === 'summary' && renderSummaryTab()}
-            {clientTab === 'notes' && renderNoteTab()}
+            {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
         </section>
