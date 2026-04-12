@@ -198,7 +198,26 @@ export default function App() {
     const num = Number(value || 0);
     return Number.isFinite(num) ? num : 0;
   }
+function calcSfsAllowance(
+  firstAdult: number,
+  additionalAdult: number,
+  childUnder16: number,
+  child16to18: number,
+  adults: number,
+  childrenUnder16: number,
+  children16to18: number
+) {
+  const firstAdultValue = adults > 0 ? firstAdult : 0;
+  const additionalAdultsValue = Math.max(adults - 1, 0) * additionalAdult;
+  const under16Value = childrenUnder16 * childUnder16;
+  const age16to18Value = children16to18 * child16to18;
 
+  return firstAdultValue + additionalAdultsValue + under16Value + age16to18Value;
+}
+
+function getVarianceStatus(actual: number, allowed: number) {
+  return actual <= allowed ? 'within' : 'over';
+}
   function sumFields(source: Record<string, string>, fields: string[]) {
     return fields.reduce((acc, key) => acc + money(source[key]), 0);
   }
@@ -242,7 +261,25 @@ export default function App() {
       'commsOther',
     ]);
   }, [expenditureForm]);
+const adultsCount = Math.max(Number(expenditureForm.adults || 1), 1);
+const childrenUnder16Count = Math.max(Number(expenditureForm.childrenUnder16 || 0), 0);
+const children16to18Count = Math.max(Number(expenditureForm.children16to18 || 0), 0);
 
+const housekeepingAllowance = useMemo(() => {
+  return calcSfsAllowance(454, 333, 197, 235, adultsCount, childrenUnder16Count, children16to18Count);
+}, [adultsCount, childrenUnder16Count, children16to18Count]);
+
+const personalAllowance = useMemo(() => {
+  return calcSfsAllowance(95, 67, 47, 105, adultsCount, childrenUnder16Count, children16to18Count);
+}, [adultsCount, childrenUnder16Count, children16to18Count]);
+
+const commsAllowance = useMemo(() => {
+  return calcSfsAllowance(250, 179, 87, 140, adultsCount, childrenUnder16Count, children16to18Count);
+}, [adultsCount, childrenUnder16Count, children16to18Count]);
+
+const housekeepingVariance = housekeepingAllowance - totalHousekeeping;
+const personalVariance = personalAllowance - totalPersonal;
+const commsVariance = commsAllowance - totalComms;
   const totalFixedExpenditure = useMemo(() => {
     return sumFields(expenditureForm, [
       'mortgage',
@@ -1000,14 +1037,82 @@ export default function App() {
       <section className="card premium-panel tab-panel">
         <div className="detail-sections">
           <section className="detail-section">
-            <h4>Household setup</h4>
-            <div className="form-grid">
-              <div><label>Adults</label><input value={expenditureForm.adults} onChange={(e) => updateExpenditureForm('adults', e.target.value)} /></div>
-              <div><label>Children under 16</label><input value={expenditureForm.childrenUnder16} onChange={(e) => updateExpenditureForm('childrenUnder16', e.target.value)} /></div>
-              <div><label>Children 16-18</label><input value={expenditureForm.children16to18} onChange={(e) => updateExpenditureForm('children16to18', e.target.value)} /></div>
-            </div>
-          </section>
+  <h4>Household setup</h4>
+  <div className="form-grid">
+    <div>
+      <label>Adults</label>
+      <select
+        value={expenditureForm.adults}
+        onChange={(e) => updateExpenditureForm('adults', e.target.value)}
+      >
+        {[1, 2, 3, 4, 5, 6].map((num) => (
+          <option key={num} value={String(num)}>
+            {num}
+          </option>
+        ))}
+      </select>
+    </div>
 
+    <div>
+      <label>Children under 16</label>
+      <select
+        value={expenditureForm.childrenUnder16}
+        onChange={(e) => updateExpenditureForm('childrenUnder16', e.target.value)}
+      >
+        {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+          <option key={num} value={String(num)}>
+            {num}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label>Children 16-18</label>
+      <select
+        value={expenditureForm.children16to18}
+        onChange={(e) => updateExpenditureForm('children16to18', e.target.value)}
+      >
+        {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+          <option key={num} value={String(num)}>
+            {num}
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
+</section>
+<section className="detail-section">
+  <h4>SFS guideline snapshot</h4>
+  <div className="sfs-grid">
+    <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
+      <span>Housekeeping</span>
+      <strong>£{totalHousekeeping.toFixed(2)}</strong>
+      <small>Allowed: £{housekeepingAllowance.toFixed(2)}</small>
+      <small>
+        Variance: {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
+      </small>
+    </div>
+
+    <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
+      <span>Personal</span>
+      <strong>£{totalPersonal.toFixed(2)}</strong>
+      <small>Allowed: £{personalAllowance.toFixed(2)}</small>
+      <small>
+        Variance: {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
+      </small>
+    </div>
+
+    <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
+      <span>Comms & Leisure</span>
+      <strong>£{totalComms.toFixed(2)}</strong>
+      <small>Allowed: £{commsAllowance.toFixed(2)}</small>
+      <small>
+        Variance: {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
+      </small>
+    </div>
+  </div>
+</section>
           <section className="detail-section">
             <h4>SFS Housekeeping</h4>
             <div className="form-grid">
@@ -1091,38 +1196,67 @@ export default function App() {
     );
   }
 
-  function renderSummaryTab() {
-    return (
-      <section className="card premium-panel tab-panel">
-        <div className="summary-grid">
-          <div className="summary-box">
-            <span>Total income</span>
-            <strong>£{totalIncome.toFixed(2)}</strong>
-          </div>
-          <div className="summary-box">
-            <span>SFS housekeeping</span>
+function renderSummaryTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="summary-grid">
+        <div className="summary-box">
+          <span>Total income</span>
+          <strong>£{totalIncome.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Total SFS expenditure</span>
+          <strong>£{(totalHousekeeping + totalPersonal + totalComms).toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Fixed expenditure</span>
+          <strong>£{totalFixedExpenditure.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Total expenditure</span>
+          <strong>£{totalExpenditure.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box highlight">
+          <span>Disposable income</span>
+          <strong>£{disposableIncome.toFixed(2)}</strong>
+        </div>
+      </div>
+
+      <section className="detail-section summary-section">
+        <h4>SFS comparison</h4>
+
+        <div className="sfs-grid">
+          <div className={`sfs-card ${getVarianceStatus(totalHousekeeping, housekeepingAllowance)}`}>
+            <span>Housekeeping</span>
             <strong>£{totalHousekeeping.toFixed(2)}</strong>
+            <small>Allowed: £{housekeepingAllowance.toFixed(2)}</small>
+            <small>
+              Variance: {housekeepingVariance >= 0 ? '+' : '-'}£{Math.abs(housekeepingVariance).toFixed(2)}
+            </small>
           </div>
-          <div className="summary-box">
-            <span>SFS personal</span>
+
+          <div className={`sfs-card ${getVarianceStatus(totalPersonal, personalAllowance)}`}>
+            <span>Personal</span>
             <strong>£{totalPersonal.toFixed(2)}</strong>
+            <small>Allowed: £{personalAllowance.toFixed(2)}</small>
+            <small>
+              Variance: {personalVariance >= 0 ? '+' : '-'}£{Math.abs(personalVariance).toFixed(2)}
+            </small>
           </div>
-          <div className="summary-box">
-            <span>SFS comms & leisure</span>
+
+          <div className={`sfs-card ${getVarianceStatus(totalComms, commsAllowance)}`}>
+            <span>Comms & Leisure</span>
             <strong>£{totalComms.toFixed(2)}</strong>
-          </div>
-          <div className="summary-box">
-            <span>Fixed expenditure</span>
-            <strong>£{totalFixedExpenditure.toFixed(2)}</strong>
-          </div>
-          <div className="summary-box highlight">
-            <span>Disposable income</span>
-            <strong>£{disposableIncome.toFixed(2)}</strong>
+            <small>Allowed: £{commsAllowance.toFixed(2)}</small>
+            <small>
+              Variance: {commsVariance >= 0 ? '+' : '-'}£{Math.abs(commsVariance).toFixed(2)}
+            </small>
           </div>
         </div>
       </section>
-    );
-  }
+    </section>
+  );
+}
 
   function renderNotesTab() {
     if (!selectedClient) return null;
