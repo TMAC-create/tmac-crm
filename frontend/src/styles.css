@@ -1152,3 +1152,62 @@ dd { margin: 0; font-weight: 600; }
     align-items: flex-start;
   }
 }
+.loan-warning-box {
+  margin-top: 16px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.loan-warning-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #92400e;
+}
+
+.loan-warning-box p {
+  margin: 0 0 12px 0;
+  color: #78350f;
+}
+
+.ltv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.ltv-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.ltv-card span {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.ltv-card strong {
+  font-size: 24px;
+  color: #111827;
+}
+
+.loan-notes-area {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  resize: vertical;
+  font: inherit;
+}
+
+@media (max-width: 980px) {
+  .ltv-grid {
+    grid-template-columns: 1fr;
+  }
+}
