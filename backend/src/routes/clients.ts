@@ -27,11 +27,20 @@ const debtItemSchema = z.object({
   monthlyPayment: z.string().optional().or(z.literal('')),
 });
 
+const loanSchema = z.object({
+  initialLoanAmount: z.string().optional().or(z.literal('')),
+  furtherAdvance: z.string().optional().or(z.literal('')),
+  propertyValue: z.string().optional().or(z.literal('')),
+  includeHirePurchase: z.enum(['yes', 'no']).optional(),
+  notes: z.string().optional().or(z.literal('')),
+});
+
 const metadataSchema = z
   .object({
     income: z.record(z.string(), z.any()).optional(),
     expenditure: z.record(z.string(), z.any()).optional(),
     debts: z.array(debtItemSchema).optional(),
+    loan: loanSchema.optional(),
   })
   .optional();
 
