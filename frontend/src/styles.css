@@ -1130,3 +1130,25 @@ dd { margin: 0; font-weight: 600; }
     justify-content: flex-start;
   }
 }
+.creditor-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.creditor-admin-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .creditor-admin-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
