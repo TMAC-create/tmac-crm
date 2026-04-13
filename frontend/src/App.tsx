@@ -585,29 +585,30 @@ setCreditorSearch('');
     setSuccess('');
 
     const response = await fetch(`${API_URL}/clients/${selectedClientId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-     body: JSON.stringify({
-  ...editForm,
-  metadataJson: {
-    income: incomeForm,
-    expenditure: expenditureForm,
-    debts,
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
   },
-}),
+  body: JSON.stringify({
+    ...editForm,
+    metadataJson: {
+      income: incomeForm,
+      expenditure: expenditureForm,
+      debts,
+    },
+  }),
+});
 
     if (!response.ok) {
-      setError('Could not update client.');
-      return;
-    }
+    setError('Could not update client.');
+    return;
+  }
 
-    await loadClients();
-    await loadClientDetail(selectedClientId);
-    setSuccess('Client updated successfully.');
- }
+  await loadClients();
+  await loadClientDetail(selectedClientId);
+  setSuccess('Client updated successfully.');
+}
 
   async function addNote() {
     if (!selectedClientId || !newNote.trim()) return;
