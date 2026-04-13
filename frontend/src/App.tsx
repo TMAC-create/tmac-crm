@@ -607,7 +607,7 @@ setCreditorSearch('');
     await loadClients();
     await loadClientDetail(selectedClientId);
     setSuccess('Client updated successfully.');
-  }
+ }
 
   async function addNote() {
     if (!selectedClientId || !newNote.trim()) return;
