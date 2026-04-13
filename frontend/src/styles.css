@@ -1043,3 +1043,55 @@ dd { margin: 0; font-weight: 600; }
   color: #374151;
   margin-bottom: 10px;
 }
+.creditor-suggestions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.creditor-suggestion {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.debt-list {
+  display: grid;
+  gap: 12px;
+}
+
+.debt-item {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.debt-main {
+  display: grid;
+  gap: 4px;
+}
+
+.debt-main span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.debt-figures {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: #374151;
+}
+
+@media (max-width: 900px) {
+  .debt-item {
+    grid-template-columns: 1fr;
+  }
+}
