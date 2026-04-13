@@ -13,9 +13,20 @@ type Activity = {
   createdAt: string;
 };
 
+type DebtItem = {
+  id: string;
+  creditorName: string;
+  referenceNumber: string;
+  debtType: string;
+  classification: 'SECURED' | 'UNSECURED';
+  balance: string;
+  monthlyPayment: string;
+};
+
 type ClientMetadata = {
   income?: Record<string, string>;
   expenditure?: Record<string, string>;
+  debts?: DebtItem[];
 };
 
 type Client = {
@@ -51,7 +62,15 @@ type ClientTab =
   | 'activity';
 
 const API_URL = 'https://tmac-crm-api.onrender.com';
-
+const emptyDebtForm: DebtItem = {
+  id: '',
+  creditorName: '',
+  referenceNumber: '',
+  debtType: 'Credit Card',
+  classification: 'UNSECURED',
+  balance: '',
+  monthlyPayment: '',
+};
 const emptyClientForm = {
   title: '',
   firstName: '',
@@ -99,7 +118,87 @@ const emptyIncomeData: Record<string, string> = {
   otherIncome1: '',
   otherIncome2: '',
 };
+const debtTypeOptions = [
+  'Mortgage',
+  'Secured Loan',
+  'Second Charge',
+  'Bridging Loan',
+  'Hire Purchase',
+  'Credit Card',
+  'Personal Loan',
+  'Overdraft',
+  'Store Card',
+  'Catalogue',
+  'Payday Loan',
+  'Council Tax',
+  'HMRC',
+  'Student Loan',
+  'Utility Arrears',
+  'Rent Arrears',
+  'Mobile / Telecom',
+  'Benefit Overpayment',
+  'Other Unsecured',
+];
 
+const starterCreditors = [
+  'Barclays',
+  'Lloyds Bank',
+  'Halifax',
+  'NatWest',
+  'HSBC',
+  'Santander',
+  'Nationwide',
+  'TSB',
+  'Capital One',
+  'MBNA',
+  'Vanquis',
+  'NewDay',
+  'Tesco Bank',
+  'Virgin Money',
+  'Monzo',
+  'Starling Bank',
+  'HMRC',
+  'Student Loans Company',
+  'Local Council',
+  'British Gas',
+  'E.ON',
+  'EDF Energy',
+  'Octopus Energy',
+  'Scottish Power',
+  'Thames Water',
+  'Anglian Water',
+  'Severn Trent',
+  'O2',
+  'EE',
+  'Vodafone',
+  'Three',
+  'Sky',
+  'Virgin Media',
+  'BT',
+  'TalkTalk',
+  'Kensington',
+  'Together',
+  'Pepper Money',
+  'Precise Mortgages',
+  'Aldermore',
+  'Shawbrook',
+];
+
+function defaultClassificationForDebtType(debtType: string) {
+  const securedTypes = [
+    'Mortgage',
+    'Secured Loan',
+    'Second Charge',
+    'Bridging Loan',
+    'Hire Purchase',
+  ];
+
+  return securedTypes.includes(debtType) ? 'SECURED' : 'UNSECURED';
+}
+
+function makeDebtId() {
+  return `debt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 const emptyExpenditureData: Record<string, string> = {
   adults: '1',
   childrenUnder16: '0',
@@ -174,11 +273,14 @@ export default function App() {
   const [clientForm, setClientForm] = useState(emptyClientForm);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [clientTab, setClientTab] = useState<ClientTab>('overview');
-  const [editForm, setEditForm] = useState(emptyClientForm);
-  const [incomeForm, setIncomeForm] = useState<Record<string, string>>(emptyIncomeData);
-  const [expenditureForm, setExpenditureForm] = useState<Record<string, string>>(emptyExpenditureData);
-  const [newNote, setNewNote] = useState('');
+ const [clientTab, setClientTab] = useState<ClientTab>('overview');
+const [editForm, setEditForm] = useState(emptyClientForm);
+const [incomeForm, setIncomeForm] = useState<Record<string, string>>(emptyIncomeData);
+const [expenditureForm, setExpenditureForm] = useState<Record<string, string>>(emptyExpenditureData);
+const [debts, setDebts] = useState<DebtItem[]>([]);
+const [debtForm, setDebtForm] = useState<DebtItem>(emptyDebtForm);
+const [creditorSearch, setCreditorSearch] = useState('');
+const [newNote, setNewNote] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 
@@ -327,7 +429,19 @@ const commsVariance = commsAllowance - totalComms;
       'otherEssential',
     ]);
   }, [expenditureForm]);
+const totalSecuredDebt = useMemo(() => {
+  return debts
+    .filter((debt) => debt.classification === 'SECURED')
+    .reduce((acc, debt) => acc + money(debt.balance), 0);
+}, [debts]);
 
+const totalUnsecuredDebt = useMemo(() => {
+  return debts
+    .filter((debt) => debt.classification === 'UNSECURED')
+    .reduce((acc, debt) => acc + money(debt.balance), 0);
+}, [debts]);
+
+const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
   const totalExpenditure = totalHousekeeping + totalPersonal + totalComms + totalFixedExpenditure;
   const disposableIncome = totalIncome - totalExpenditure;
 
@@ -420,7 +534,9 @@ const commsVariance = commsAllowance - totalComms;
       ...(client.metadataJson?.expenditure || {}),
     });
   }
-
+setDebts(client.metadataJson?.debts || []);
+setDebtForm(emptyDebtForm);
+setCreditorSearch('');
   async function openClient(client: Client) {
     setShowAddClient(false);
     setSuccess('');
@@ -474,14 +590,14 @@ const commsVariance = commsAllowance - totalComms;
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        ...editForm,
-        metadataJson: {
-          income: incomeForm,
-          expenditure: expenditureForm,
-        },
-      }),
-    });
+     body: JSON.stringify({
+  ...editForm,
+  metadataJson: {
+    income: incomeForm,
+    expenditure: expenditureForm,
+    debts,
+  },
+}),
 
     if (!response.ok) {
       setError('Could not update client.');
@@ -554,7 +670,38 @@ const commsVariance = commsAllowance - totalComms;
   function updateExpenditureForm(field: string, value: string) {
     setExpenditureForm((prev) => ({ ...prev, [field]: value }));
   }
+function updateDebtForm(field: keyof DebtItem, value: string) {
+  setDebtForm((prev) => {
+    const next = { ...prev, [field]: value };
 
+    if (field === 'debtType') {
+      next.classification = defaultClassificationForDebtType(value);
+    }
+
+    return next;
+  });
+}
+
+function addDebt() {
+  if (!debtForm.creditorName.trim()) {
+    setError('Please enter a creditor name.');
+    return;
+  }
+
+  const item: DebtItem = {
+    ...debtForm,
+    id: makeDebtId(),
+  };
+
+  setDebts((prev) => [...prev, item]);
+  setDebtForm(emptyDebtForm);
+  setCreditorSearch('');
+  setSuccess('Debt added. Click Save changes to keep it on the client record.');
+}
+
+function removeDebt(id: string) {
+  setDebts((prev) => prev.filter((debt) => debt.id !== id));
+}
   function formatDate(value: string) {
     return new Date(value).toLocaleDateString('en-GB');
   }
@@ -1497,16 +1644,188 @@ function renderSummaryTab() {
     </section>
   );
 }
-  function renderDebtsTab() {
+ function renderDebtsTab() {
+  const filteredCreditors = starterCreditors.filter((name) =>
+    name.toLowerCase().includes(creditorSearch.toLowerCase())
+  );
+
+  const securedDebts = debts.filter((debt) => debt.classification === 'SECURED');
+  const unsecuredDebts = debts.filter((debt) => debt.classification === 'UNSECURED');
+
   return (
     <section className="card premium-panel tab-panel">
+      <div className="summary-grid">
+        <div className="summary-box">
+          <span>Total secured debt</span>
+          <strong>£{totalSecuredDebt.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Total unsecured debt</span>
+          <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box highlight">
+          <span>Total debt</span>
+          <strong>£{totalDebt.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Number of debts</span>
+          <strong>{debts.length}</strong>
+        </div>
+      </div>
+
       <div className="detail-sections">
         <section className="detail-section">
-          <h4>Debts / Creditors</h4>
-          <p className="muted-text">
-            This section will hold secured and unsecured creditor records, debt totals,
-            and creditor search.
-          </p>
+          <h4>Add debt / creditor</h4>
+
+          <div className="form-grid">
+            <div className="full-width">
+              <label>Creditor search</label>
+              <input
+                value={creditorSearch}
+                onChange={(e) => {
+                  setCreditorSearch(e.target.value);
+                  updateDebtForm('creditorName', e.target.value);
+                }}
+                placeholder="Start typing creditor name"
+              />
+              {creditorSearch.trim() && filteredCreditors.length > 0 && (
+                <div className="creditor-suggestions">
+                  {filteredCreditors.slice(0, 8).map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className="creditor-suggestion"
+                      onClick={() => {
+                        setCreditorSearch(name);
+                        updateDebtForm('creditorName', name);
+                      }}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label>Creditor name</label>
+              <input
+                value={debtForm.creditorName}
+                onChange={(e) => updateDebtForm('creditorName', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Reference number</label>
+              <input
+                value={debtForm.referenceNumber}
+                onChange={(e) => updateDebtForm('referenceNumber', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Debt type</label>
+              <select
+                value={debtForm.debtType}
+                onChange={(e) => updateDebtForm('debtType', e.target.value)}
+              >
+                {debtTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label>Secured / Unsecured</label>
+              <select
+                value={debtForm.classification}
+                onChange={(e) =>
+                  updateDebtForm('classification', e.target.value as 'SECURED' | 'UNSECURED')
+                }
+              >
+                <option value="SECURED">Secured</option>
+                <option value="UNSECURED">Unsecured</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Balance</label>
+              <input
+                value={debtForm.balance}
+                onChange={(e) => updateDebtForm('balance', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Monthly payment</label>
+              <input
+                value={debtForm.monthlyPayment}
+                onChange={(e) => updateDebtForm('monthlyPayment', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button className="primary" onClick={addDebt}>
+              Add debt
+            </button>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>Secured debts</h4>
+
+          {securedDebts.length === 0 ? (
+            <p className="muted-text">No secured debts added yet.</p>
+          ) : (
+            <div className="debt-list">
+              {securedDebts.map((debt) => (
+                <div key={debt.id} className="debt-item">
+                  <div className="debt-main">
+                    <strong>{debt.creditorName}</strong>
+                    <span>{debt.debtType}</span>
+                    <span>Ref: {debt.referenceNumber || '-'}</span>
+                  </div>
+                  <div className="debt-figures">
+                    <span>Balance £{money(debt.balance).toFixed(2)}</span>
+                    <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
+                  </div>
+                  <button className="danger-button" onClick={() => removeDebt(debt.id)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="detail-section">
+          <h4>Unsecured debts</h4>
+
+          {unsecuredDebts.length === 0 ? (
+            <p className="muted-text">No unsecured debts added yet.</p>
+          ) : (
+            <div className="debt-list">
+              {unsecuredDebts.map((debt) => (
+                <div key={debt.id} className="debt-item">
+                  <div className="debt-main">
+                    <strong>{debt.creditorName}</strong>
+                    <span>{debt.debtType}</span>
+                    <span>Ref: {debt.referenceNumber || '-'}</span>
+                  </div>
+                  <div className="debt-figures">
+                    <span>Balance £{money(debt.balance).toFixed(2)}</span>
+                    <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
+                  </div>
+                  <button className="danger-button" onClick={() => removeDebt(debt.id)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </section>
