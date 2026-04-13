@@ -279,6 +279,7 @@ const [incomeForm, setIncomeForm] = useState<Record<string, string>>(emptyIncome
 const [expenditureForm, setExpenditureForm] = useState<Record<string, string>>(emptyExpenditureData);
 const [debts, setDebts] = useState<DebtItem[]>([]);
 const [debtForm, setDebtForm] = useState<DebtItem>(emptyDebtForm);
+const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
 const [creditorSearch, setCreditorSearch] = useState('');
 const [newNote, setNewNote] = useState('');
 
@@ -535,6 +536,7 @@ const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
     });
     setDebts(client.metadataJson?.debts || []);
 setDebtForm(emptyDebtForm);
+setEditingDebtId(null);
 setCreditorSearch('');
   }
 
@@ -684,25 +686,59 @@ function updateDebtForm(field: keyof DebtItem, value: string) {
   });
 }
 
-function addDebt() {
+function resetDebtForm() {
+  setDebtForm(emptyDebtForm);
+  setEditingDebtId(null);
+  setCreditorSearch('');
+}
+
+function addOrUpdateDebt() {
   if (!debtForm.creditorName.trim()) {
     setError('Please enter a creditor name.');
     return;
   }
 
-  const item: DebtItem = {
-    ...debtForm,
-    id: makeDebtId(),
-  };
+  setError('');
 
-  setDebts((prev) => [...prev, item]);
-  setDebtForm(emptyDebtForm);
-  setCreditorSearch('');
-  setSuccess('Debt added. Click Save changes to keep it on the client record.');
+  if (editingDebtId) {
+    setDebts((prev) =>
+      prev.map((debt) =>
+        debt.id === editingDebtId
+          ? {
+              ...debtForm,
+              id: editingDebtId,
+            }
+          : debt
+      )
+    );
+    setSuccess('Debt updated. Click Save changes to keep it on the client record.');
+  } else {
+    const item: DebtItem = {
+      ...debtForm,
+      id: makeDebtId(),
+    };
+
+    setDebts((prev) => [...prev, item]);
+    setSuccess('Debt added. Click Save changes to keep it on the client record.');
+  }
+
+  resetDebtForm();
+}
+
+function editDebt(debt: DebtItem) {
+  setDebtForm(debt);
+  setEditingDebtId(debt.id);
+  setCreditorSearch(debt.creditorName);
+  setSuccess('');
+  setError('');
 }
 
 function removeDebt(id: string) {
   setDebts((prev) => prev.filter((debt) => debt.id !== id));
+
+  if (editingDebtId === id) {
+    resetDebtForm();
+  }
 }
   function formatDate(value: string) {
     return new Date(value).toLocaleDateString('en-GB');
@@ -1654,6 +1690,15 @@ function renderSummaryTab() {
   const securedDebts = debts.filter((debt) => debt.classification === 'SECURED');
   const unsecuredDebts = debts.filter((debt) => debt.classification === 'UNSECURED');
 
+  const securedMonthlyPayment = securedDebts.reduce(
+    (acc, debt) => acc + money(debt.monthlyPayment),
+    0
+  );
+  const unsecuredMonthlyPayment = unsecuredDebts.reduce(
+    (acc, debt) => acc + money(debt.monthlyPayment),
+    0
+  );
+
   return (
     <section className="card premium-panel tab-panel">
       <div className="summary-grid">
@@ -1677,7 +1722,14 @@ function renderSummaryTab() {
 
       <div className="detail-sections">
         <section className="detail-section">
-          <h4>Add debt / creditor</h4>
+          <div className="table-header">
+            <h4>{editingDebtId ? 'Edit debt / creditor' : 'Add debt / creditor'}</h4>
+            {editingDebtId && (
+              <button className="secondary" onClick={resetDebtForm}>
+                Cancel edit
+              </button>
+            )}
+          </div>
 
           <div className="form-grid">
             <div className="full-width">
@@ -1770,14 +1822,27 @@ function renderSummaryTab() {
           </div>
 
           <div className="form-actions">
-            <button className="primary" onClick={addDebt}>
-              Add debt
+            <button className="secondary" onClick={resetDebtForm}>
+              Clear
+            </button>
+            <button className="primary" onClick={addOrUpdateDebt}>
+              {editingDebtId ? 'Update debt' : 'Add debt'}
             </button>
           </div>
         </section>
 
         <section className="detail-section">
-          <h4>Secured debts</h4>
+          <div className="debt-section-header">
+            <div>
+              <h4>Secured debts</h4>
+              <p className="muted-text">
+                {securedDebts.length} items · Monthly payments £{securedMonthlyPayment.toFixed(2)}
+              </p>
+            </div>
+            <div className="debt-section-total">
+              £{totalSecuredDebt.toFixed(2)}
+            </div>
+          </div>
 
           {securedDebts.length === 0 ? (
             <p className="muted-text">No secured debts added yet.</p>
@@ -1794,14 +1859,65 @@ function renderSummaryTab() {
                     <span>Balance £{money(debt.balance).toFixed(2)}</span>
                     <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
                   </div>
-                  <button className="danger-button" onClick={() => removeDebt(debt.id)}>
-                    Remove
-                  </button>
+                  <div className="debt-actions">
+                    <button className="secondary small-button" onClick={() => editDebt(debt)}>
+                      Edit
+                    </button>
+                    <button className="danger-button small-button" onClick={() => removeDebt(debt.id)}>
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </section>
+
+        <section className="detail-section">
+          <div className="debt-section-header">
+            <div>
+              <h4>Unsecured debts</h4>
+              <p className="muted-text">
+                {unsecuredDebts.length} items · Monthly payments £{unsecuredMonthlyPayment.toFixed(2)}
+              </p>
+            </div>
+            <div className="debt-section-total">
+              £{totalUnsecuredDebt.toFixed(2)}
+            </div>
+          </div>
+
+          {unsecuredDebts.length === 0 ? (
+            <p className="muted-text">No unsecured debts added yet.</p>
+          ) : (
+            <div className="debt-list">
+              {unsecuredDebts.map((debt) => (
+                <div key={debt.id} className="debt-item">
+                  <div className="debt-main">
+                    <strong>{debt.creditorName}</strong>
+                    <span>{debt.debtType}</span>
+                    <span>Ref: {debt.referenceNumber || '-'}</span>
+                  </div>
+                  <div className="debt-figures">
+                    <span>Balance £{money(debt.balance).toFixed(2)}</span>
+                    <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
+                  </div>
+                  <div className="debt-actions">
+                    <button className="secondary small-button" onClick={() => editDebt(debt)}>
+                      Edit
+                    </button>
+                    <button className="danger-button small-button" onClick={() => removeDebt(debt.id)}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
 
         <section className="detail-section">
           <h4>Unsecured debts</h4>
