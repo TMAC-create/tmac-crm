@@ -1992,12 +1992,12 @@ function renderSummaryTab() {
               ))}
             </div>
           )}
-        </section>
+               </section>
       </div>
     </section>
   );
 }
-  function renderNotesTab() {
+function renderNotesTab() {
   if (!selectedClient) return null;
 
   const notes = selectedClient.notes || [];
