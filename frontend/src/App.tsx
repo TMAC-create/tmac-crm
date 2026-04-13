@@ -1694,6 +1694,7 @@ function renderSummaryTab() {
     (acc, debt) => acc + money(debt.monthlyPayment),
     0
   );
+
   const unsecuredMonthlyPayment = unsecuredDebts.reduce(
     (acc, debt) => acc + money(debt.monthlyPayment),
     0
@@ -1839,9 +1840,7 @@ function renderSummaryTab() {
                 {securedDebts.length} items · Monthly payments £{securedMonthlyPayment.toFixed(2)}
               </p>
             </div>
-            <div className="debt-section-total">
-              £{totalSecuredDebt.toFixed(2)}
-            </div>
+            <div className="debt-section-total">£{totalSecuredDebt.toFixed(2)}</div>
           </div>
 
           {securedDebts.length === 0 ? (
@@ -1863,7 +1862,10 @@ function renderSummaryTab() {
                     <button className="secondary small-button" onClick={() => editDebt(debt)}>
                       Edit
                     </button>
-                    <button className="danger-button small-button" onClick={() => removeDebt(debt.id)}>
+                    <button
+                      className="danger-button small-button"
+                      onClick={() => removeDebt(debt.id)}
+                    >
                       Remove
                     </button>
                   </div>
@@ -1873,6 +1875,52 @@ function renderSummaryTab() {
           )}
         </section>
 
+        <section className="detail-section">
+          <div className="debt-section-header">
+            <div>
+              <h4>Unsecured debts</h4>
+              <p className="muted-text">
+                {unsecuredDebts.length} items · Monthly payments £{unsecuredMonthlyPayment.toFixed(2)}
+              </p>
+            </div>
+            <div className="debt-section-total">£{totalUnsecuredDebt.toFixed(2)}</div>
+          </div>
+
+          {unsecuredDebts.length === 0 ? (
+            <p className="muted-text">No unsecured debts added yet.</p>
+          ) : (
+            <div className="debt-list">
+              {unsecuredDebts.map((debt) => (
+                <div key={debt.id} className="debt-item">
+                  <div className="debt-main">
+                    <strong>{debt.creditorName}</strong>
+                    <span>{debt.debtType}</span>
+                    <span>Ref: {debt.referenceNumber || '-'}</span>
+                  </div>
+                  <div className="debt-figures">
+                    <span>Balance £{money(debt.balance).toFixed(2)}</span>
+                    <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
+                  </div>
+                  <div className="debt-actions">
+                    <button className="secondary small-button" onClick={() => editDebt(debt)}>
+                      Edit
+                    </button>
+                    <button
+                      className="danger-button small-button"
+                      onClick={() => removeDebt(debt.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
         <section className="detail-section">
           <div className="debt-section-header">
             <div>
