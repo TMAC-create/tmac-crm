@@ -521,20 +521,20 @@ const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
       postcode: client.postcode || '',
       source: client.source || '',
       campaign: client.campaign || '',
-      status: selectedClient.status || 'NEW_LEAD',
+      status: client.status || 'NEW_LEAD',
     });
 
     setIncomeForm({
       ...emptyIncomeData,
-      ...(selectedClient.metadataJson?.income || {}),
+      ...(client.metadataJson?.income || {}),
     });
 
     setExpenditureForm({
       ...emptyExpenditureData,
-      ...(selectedClient.metadataJson?.expenditure || {}),
+      ...(client.metadataJson?.expenditure || {}),
     });
   }
-setDebts(selectedClient.metadataJson?.debts || []);
+setDebts(client.metadataJson?.debts || []);
 setDebtForm(emptyDebtForm);
 setCreditorSearch('');
   async function openClient(client: Client) {
