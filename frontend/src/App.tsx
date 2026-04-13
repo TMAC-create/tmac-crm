@@ -26,10 +26,19 @@ type CreditorMasterItem = {
   id: string;
   name: string;
 };
+type LoanData = {
+  initialLoanAmount: string;
+  furtherAdvance: string;
+  propertyValue: string;
+  includeHirePurchase: 'yes' | 'no';
+  notes: string;
+};
+
 type ClientMetadata = {
   income?: Record<string, string>;
   expenditure?: Record<string, string>;
   debts?: DebtItem[];
+  loan?: LoanData;
 };
 
 type Client = {
@@ -61,6 +70,7 @@ type ClientTab =
   | 'expenditure'
   | 'summary'
   | 'debts'
+  | 'loan'
   | 'notes'
   | 'activity';
 
@@ -73,6 +83,13 @@ const emptyDebtForm: DebtItem = {
   classification: 'UNSECURED',
   balance: '',
   monthlyPayment: '',
+};
+const emptyLoanData: LoanData = {
+  initialLoanAmount: '',
+  furtherAdvance: '',
+  propertyValue: '',
+  includeHirePurchase: 'no',
+  notes: '',
 };
 const emptyClientForm = {
   title: '',
@@ -286,6 +303,7 @@ const [expenditureForm, setExpenditureForm] = useState<Record<string, string>>(e
 const [debts, setDebts] = useState<DebtItem[]>([]);
 const [debtForm, setDebtForm] = useState<DebtItem>(emptyDebtForm);
 const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
+const [loanForm, setLoanForm] = useState<LoanData>(emptyLoanData);
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -457,6 +475,44 @@ const totalUnsecuredDebt = useMemo(() => {
 }, [debts]);
 
 const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
+  const mortgageBalance = useMemo(() => {
+  return debts
+    .filter((debt) => debt.debtType === 'Mortgage')
+    .reduce((acc, debt) => acc + money(debt.balance), 0);
+}, [debts]);
+
+const securedLoanBalance = useMemo(() => {
+  return debts
+    .filter((debt) =>
+      ['Secured Loan', 'Second Charge', 'Bridging Loan'].includes(debt.debtType)
+    )
+    .reduce((acc, debt) => acc + money(debt.balance), 0);
+}, [debts]);
+
+const hirePurchaseBalance = useMemo(() => {
+  return debts
+    .filter((debt) => debt.debtType === 'Hire Purchase')
+    .reduce((acc, debt) => acc + money(debt.balance), 0);
+}, [debts]);
+
+const propertyValueNumber = money(loanForm.propertyValue);
+const furtherAdvanceNumber = money(loanForm.furtherAdvance);
+const initialLoanAmountNumber = money(loanForm.initialLoanAmount);
+const includedHpAmount = loanForm.includeHirePurchase === 'yes' ? hirePurchaseBalance : 0;
+
+const finalLoanAmount = totalUnsecuredDebt + furtherAdvanceNumber + includedHpAmount;
+const totalExistingSecuredBalances = mortgageBalance + securedLoanBalance;
+const totalSecuredBorrowingAfterCompletion = totalExistingSecuredBalances + finalLoanAmount;
+
+const postCompletionLtv =
+  propertyValueNumber > 0
+    ? (totalSecuredBorrowingAfterCompletion / propertyValueNumber) * 100
+    : 0;
+
+function maxLoanAtLtv(targetLtv: number) {
+  if (!propertyValueNumber) return 0;
+  return Math.max((propertyValueNumber * targetLtv) / 100 - totalExistingSecuredBalances, 0);
+}
   const totalExpenditure = totalHousekeeping + totalPersonal + totalComms + totalFixedExpenditure;
   const disposableIncome = totalIncome - totalExpenditure;
 
@@ -551,6 +607,10 @@ const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
     setDebts(client.metadataJson?.debts || []);
 setDebtForm(emptyDebtForm);
 setEditingDebtId(null);
+setLoanForm({
+  ...emptyLoanData,
+  ...(client.metadataJson?.loan || {}),
+});
 setCreditorSearch('');
   }
 
@@ -609,11 +669,12 @@ setCreditorSearch('');
   },
   body: JSON.stringify({
     ...editForm,
-    metadataJson: {
-      income: incomeForm,
-      expenditure: expenditureForm,
-      debts,
-    },
+   metadataJson: {
+  income: incomeForm,
+  expenditure: expenditureForm,
+  debts,
+  loan: loanForm,
+},
   }),
 });
 
@@ -698,6 +759,10 @@ function updateDebtForm(field: keyof DebtItem, value: string) {
 
     return next;
   });
+}
+
+function updateLoanForm(field: keyof LoanData, value: string) {
+  setLoanForm((prev) => ({ ...prev, [field]: value }));
 }
 
 function resetDebtForm() {
@@ -1982,6 +2047,172 @@ function renderSummaryTab() {
     </section>
   );
 }
+  function renderLoanTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="summary-grid">
+        <div className="summary-box">
+          <span>Unsecured debt amount</span>
+          <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Further advance</span>
+          <strong>£{furtherAdvanceNumber.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box highlight">
+          <span>Final loan amount</span>
+          <strong>£{finalLoanAmount.toFixed(2)}</strong>
+        </div>
+        <div className="summary-box">
+          <span>Post-completion LTV</span>
+          <strong>{postCompletionLtv.toFixed(2)}%</strong>
+        </div>
+      </div>
+
+      <div className="detail-sections">
+        <section className="detail-section">
+          <h4>Loan build</h4>
+
+          <div className="form-grid">
+            <div>
+              <label>Initial loan amount</label>
+              <input
+                value={loanForm.initialLoanAmount}
+                onChange={(e) => updateLoanForm('initialLoanAmount', e.target.value)}
+                placeholder="For later API / lead source use"
+              />
+            </div>
+
+            <div>
+              <label>Unsecured debt amount</label>
+              <input value={totalUnsecuredDebt.toFixed(2)} readOnly />
+            </div>
+
+            <div>
+              <label>Further loan advance</label>
+              <input
+                value={loanForm.furtherAdvance}
+                onChange={(e) => updateLoanForm('furtherAdvance', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Final loan amount</label>
+              <input value={finalLoanAmount.toFixed(2)} readOnly />
+            </div>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>Security position</h4>
+
+          <div className="form-grid">
+            <div>
+              <label>Property value</label>
+              <input
+                value={loanForm.propertyValue}
+                onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Mortgage balance</label>
+              <input value={mortgageBalance.toFixed(2)} readOnly />
+            </div>
+
+            <div>
+              <label>Secured loan balance(s)</label>
+              <input value={securedLoanBalance.toFixed(2)} readOnly />
+            </div>
+
+            <div>
+              <label>Hire purchase balance</label>
+              <input value={hirePurchaseBalance.toFixed(2)} readOnly />
+            </div>
+          </div>
+
+          {hirePurchaseBalance > 0 && (
+            <div className="loan-warning-box">
+              <strong>Hire Purchase detected</strong>
+              <p>
+                There is HP in the debt list. Decide whether it should be included in the loan raise.
+              </p>
+              <div className="form-grid">
+                <div>
+                  <label>Include hire purchase in final loan amount?</label>
+                  <select
+                    value={loanForm.includeHirePurchase}
+                    onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="detail-section">
+          <h4>LTV and lending headroom</h4>
+
+          <div className="summary-grid">
+            <div className="summary-box">
+              <span>Total existing secured balances</span>
+              <strong>£{totalExistingSecuredBalances.toFixed(2)}</strong>
+            </div>
+            <div className="summary-box">
+              <span>Total secured after completion</span>
+              <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(2)}</strong>
+            </div>
+            <div className="summary-box highlight">
+              <span>Post-completion LTV</span>
+              <strong>{postCompletionLtv.toFixed(2)}%</strong>
+            </div>
+          </div>
+
+          <div className="ltv-grid">
+            {[100, 95, 90, 85, 80, 75].map((ltv) => (
+              <div key={ltv} className="ltv-card">
+                <span>{ltv}% LTV max loan</span>
+                <strong>£{maxLoanAtLtv(ltv).toFixed(2)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h4>Advisor notes</h4>
+          <textarea
+            className="loan-notes-area"
+            value={loanForm.notes}
+            onChange={(e) => updateLoanForm('notes', e.target.value)}
+            placeholder="Case observations, lender fit, affordability comments, exit notes, property notes, etc."
+            rows={5}
+          />
+        </section>
+
+        <section className="detail-section">
+          <h4>Useful case MI</h4>
+          <div className="summary-grid">
+            <div className="summary-box">
+              <span>Total household income</span>
+              <strong>£{totalIncome.toFixed(2)}</strong>
+            </div>
+            <div className="summary-box">
+              <span>Total expenditure</span>
+              <strong>£{totalExpenditure.toFixed(2)}</strong>
+            </div>
+            <div className="summary-box highlight">
+              <span>Disposable income</span>
+              <strong>£{disposableIncome.toFixed(2)}</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
 function renderNotesTab() {
   if (!selectedClient) return null;
 
@@ -2088,6 +2319,7 @@ function renderNotesTab() {
               ['expenditure', 'Expenditure'],
               ['summary', 'I&E + Disposable Income'],
               ['debts', 'Debts / Creditors'],
+              ['loan', 'Loan'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -2107,6 +2339,7 @@ function renderNotesTab() {
             {clientTab === 'expenditure' && renderExpenditureTab()}
             {clientTab === 'summary' && renderSummaryTab()}
             {clientTab === 'debts' && renderDebtsTab()}
+            {clientTab === 'loan' && renderLoanTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
