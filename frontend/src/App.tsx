@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+
 
 type Note = {
   id: string;
@@ -22,7 +22,10 @@ type DebtItem = {
   balance: string;
   monthlyPayment: string;
 };
-
+type CreditorMasterItem = {
+  id: string;
+  name: string;
+};
 type ClientMetadata = {
   income?: Record<string, string>;
   expenditure?: Record<string, string>;
@@ -140,48 +143,48 @@ const debtTypeOptions = [
   'Other Unsecured',
 ];
 
-const starterCreditors = [
-  'Barclays',
-  'Lloyds Bank',
-  'Halifax',
-  'NatWest',
-  'HSBC',
-  'Santander',
-  'Nationwide',
-  'TSB',
-  'Capital One',
-  'MBNA',
-  'Vanquis',
-  'NewDay',
-  'Tesco Bank',
-  'Virgin Money',
-  'Monzo',
-  'Starling Bank',
-  'HMRC',
-  'Student Loans Company',
-  'Local Council',
-  'British Gas',
-  'E.ON',
-  'EDF Energy',
-  'Octopus Energy',
-  'Scottish Power',
-  'Thames Water',
-  'Anglian Water',
-  'Severn Trent',
-  'O2',
-  'EE',
-  'Vodafone',
-  'Three',
-  'Sky',
-  'Virgin Media',
-  'BT',
-  'TalkTalk',
-  'Kensington',
-  'Together',
-  'Pepper Money',
-  'Precise Mortgages',
-  'Aldermore',
-  'Shawbrook',
+const defaultCreditorMasterList: CreditorMasterItem[] = [
+  { id: 'cred_1', name: 'Barclays' },
+  { id: 'cred_2', name: 'Lloyds Bank' },
+  { id: 'cred_3', name: 'Halifax' },
+  { id: 'cred_4', name: 'NatWest' },
+  { id: 'cred_5', name: 'HSBC' },
+  { id: 'cred_6', name: 'Santander' },
+  { id: 'cred_7', name: 'Nationwide' },
+  { id: 'cred_8', name: 'TSB' },
+  { id: 'cred_9', name: 'Capital One' },
+  { id: 'cred_10', name: 'MBNA' },
+  { id: 'cred_11', name: 'Vanquis' },
+  { id: 'cred_12', name: 'NewDay' },
+  { id: 'cred_13', name: 'Tesco Bank' },
+  { id: 'cred_14', name: 'Virgin Money' },
+  { id: 'cred_15', name: 'Monzo' },
+  { id: 'cred_16', name: 'Starling Bank' },
+  { id: 'cred_17', name: 'HMRC' },
+  { id: 'cred_18', name: 'Student Loans Company' },
+  { id: 'cred_19', name: 'Local Council' },
+  { id: 'cred_20', name: 'British Gas' },
+  { id: 'cred_21', name: 'E.ON' },
+  { id: 'cred_22', name: 'EDF Energy' },
+  { id: 'cred_23', name: 'Octopus Energy' },
+  { id: 'cred_24', name: 'Scottish Power' },
+  { id: 'cred_25', name: 'Thames Water' },
+  { id: 'cred_26', name: 'Anglian Water' },
+  { id: 'cred_27', name: 'Severn Trent' },
+  { id: 'cred_28', name: 'O2' },
+  { id: 'cred_29', name: 'EE' },
+  { id: 'cred_30', name: 'Vodafone' },
+  { id: 'cred_31', name: 'Three' },
+  { id: 'cred_32', name: 'Sky' },
+  { id: 'cred_33', name: 'Virgin Media' },
+  { id: 'cred_34', name: 'BT' },
+  { id: 'cred_35', name: 'TalkTalk' },
+  { id: 'cred_36', name: 'Kensington' },
+  { id: 'cred_37', name: 'Together' },
+  { id: 'cred_38', name: 'Pepper Money' },
+  { id: 'cred_39', name: 'Precise Mortgages' },
+  { id: 'cred_40', name: 'Aldermore' },
+  { id: 'cred_41', name: 'Shawbrook' },
 ];
 
 function defaultClassificationForDebtType(debtType: string) {
@@ -198,6 +201,9 @@ function defaultClassificationForDebtType(debtType: string) {
 
 function makeDebtId() {
   return `debt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function makeCreditorId() {
+  return `creditor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 const emptyExpenditureData: Record<string, string> = {
   adults: '1',
@@ -281,10 +287,18 @@ const [debts, setDebts] = useState<DebtItem[]>([]);
 const [debtForm, setDebtForm] = useState<DebtItem>(emptyDebtForm);
 const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
 const [creditorSearch, setCreditorSearch] = useState('');
+const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
+  const saved = localStorage.getItem('tmac-creditor-master-list');
+  return saved ? JSON.parse(saved) : defaultCreditorMasterList;
+});
+const [creditorAdminName, setCreditorAdminName] = useState('');
+const [editingCreditorId, setEditingCreditorId] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
-
+useEffect(() => {
+  localStorage.setItem('tmac-creditor-master-list', JSON.stringify(creditorMasterList));
+}, [creditorMasterList]);
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
@@ -739,6 +753,53 @@ function removeDebt(id: string) {
   if (editingDebtId === id) {
     resetDebtForm();
   }
+}
+  function resetCreditorAdminForm() {
+  setCreditorAdminName('');
+  setEditingCreditorId(null);
+}
+
+function addOrUpdateCreditor() {
+  if (!creditorAdminName.trim()) {
+    setError('Please enter a creditor name.');
+    return;
+  }
+
+  setError('');
+
+  if (editingCreditorId) {
+    setCreditorMasterList((prev) =>
+      prev.map((item) =>
+        item.id === editingCreditorId ? { ...item, name: creditorAdminName.trim() } : item
+      )
+    );
+    setSuccess('Creditor updated successfully.');
+  } else {
+    setCreditorMasterList((prev) => [
+      ...prev,
+      { id: makeCreditorId(), name: creditorAdminName.trim() },
+    ]);
+    setSuccess('Creditor added successfully.');
+  }
+
+  resetCreditorAdminForm();
+}
+
+function editCreditor(item: CreditorMasterItem) {
+  setCreditorAdminName(item.name);
+  setEditingCreditorId(item.id);
+  setSuccess('');
+  setError('');
+}
+
+function deleteCreditor(id: string) {
+  setCreditorMasterList((prev) => prev.filter((item) => item.id !== id));
+
+  if (editingCreditorId === id) {
+    resetCreditorAdminForm();
+  }
+
+  setSuccess('Creditor removed successfully.');
 }
   function formatDate(value: string) {
     return new Date(value).toLocaleDateString('en-GB');
@@ -1683,9 +1744,9 @@ function renderSummaryTab() {
   );
 }
  function renderDebtsTab() {
-  const filteredCreditors = starterCreditors.filter((name) =>
-    name.toLowerCase().includes(creditorSearch.toLowerCase())
-  );
+  const filteredCreditors = creditorMasterList.filter((item) =>
+  item.name.toLowerCase().includes(creditorSearch.toLowerCase())
+);
 
   const securedDebts = debts.filter((debt) => debt.classification === 'SECURED');
   const unsecuredDebts = debts.filter((debt) => debt.classification === 'UNSECURED');
@@ -1745,19 +1806,19 @@ function renderSummaryTab() {
               />
               {creditorSearch.trim() && filteredCreditors.length > 0 && (
                 <div className="creditor-suggestions">
-                  {filteredCreditors.slice(0, 8).map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      className="creditor-suggestion"
-                      onClick={() => {
-                        setCreditorSearch(name);
-                        updateDebtForm('creditorName', name);
-                      }}
-                    >
-                      {name}
-                    </button>
-                  ))}
+              {filteredCreditors.slice(0, 8).map((item) => (
+  <button
+    key={item.id}
+    type="button"
+    className="creditor-suggestion"
+    onClick={() => {
+      setCreditorSearch(item.name);
+      updateDebtForm('creditorName', item.name);
+    }}
+  >
+    {item.name}
+  </button>
+))}
                 </div>
               )}
             </div>
@@ -2054,14 +2115,93 @@ function renderNotesTab() {
     );
   }
 
-  function renderPlaceholder(title: string) {
-    return (
-      <section className="card placeholder-card premium-panel">
-        <h2>{title}</h2>
-        <p>This section is next to be built out.</p>
+ function renderAdminTab() {
+  const sortedCreditors = [...creditorMasterList].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  return (
+    <>
+      <header className="page-header premium-header">
+        <div>
+          <div className="eyebrow">Administration</div>
+          <h2>Creditor Master List</h2>
+          <p>Manage the creditor list used in the debts and creditors tab.</p>
+        </div>
+      </header>
+
+      <section className="card premium-panel tab-panel">
+        <div className="detail-sections">
+          <section className="detail-section">
+            <div className="table-header">
+              <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
+              {editingCreditorId && (
+                <button className="secondary" onClick={resetCreditorAdminForm}>
+                  Cancel edit
+                </button>
+              )}
+            </div>
+
+            <div className="form-grid">
+              <div className="full-width">
+                <label>Creditor name</label>
+                <input
+                  value={creditorAdminName}
+                  onChange={(e) => setCreditorAdminName(e.target.value)}
+                  placeholder="Enter creditor name"
+                />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button className="secondary" onClick={resetCreditorAdminForm}>
+                Clear
+              </button>
+              <button className="primary" onClick={addOrUpdateCreditor}>
+                {editingCreditorId ? 'Update creditor' : 'Add creditor'}
+              </button>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <div className="table-header">
+              <h4>Master creditor list</h4>
+              <span>{sortedCreditors.length} creditors</span>
+            </div>
+
+            <div className="creditor-admin-list">
+              {sortedCreditors.map((item) => (
+                <div key={item.id} className="creditor-admin-item">
+                  <strong>{item.name}</strong>
+                  <div className="debt-actions">
+                    <button className="secondary small-button" onClick={() => editCreditor(item)}>
+                      Edit
+                    </button>
+                    <button
+                      className="danger-button small-button"
+                      onClick={() => deleteCreditor(item.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       </section>
-    );
-  }
+    </>
+  );
+}
+
+function renderPlaceholder(title: string) {
+  return (
+    <section className="card placeholder-card premium-panel">
+      <h2>{title}</h2>
+      <p>This section is next to be built out.</p>
+    </section>
+  );
+}
 
   return (
     <div className="app-shell">
@@ -2127,11 +2267,11 @@ function renderNotesTab() {
             {error && <p className="error inline-error">{error}</p>}
             {success && <p className="success inline-success">{success}</p>}
 
-            {view === 'dashboard' && renderDashboard()}
-            {view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
-            {view === 'tasks' && renderPlaceholder('Tasks')}
-            {view === 'reporting' && renderPlaceholder('Reporting')}
-            {view === 'admin' && renderPlaceholder('Admin')}
+           {view === 'dashboard' && renderDashboard()}
+{view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
+{view === 'tasks' && renderPlaceholder('Tasks')}
+{view === 'reporting' && renderPlaceholder('Reporting')}
+{view === 'admin' && renderAdminTab()}
           </>
         )}
       </main>
