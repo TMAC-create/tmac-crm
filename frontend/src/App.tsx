@@ -20,6 +20,7 @@ type ClientMetadata = {
 
 type Client = {
   id: string;
+  title?: string | null;
   firstName: string;
   lastName: string;
   email?: string | null;
@@ -45,6 +46,7 @@ type ClientTab = 'overview' | 'income' | 'expenditure' | 'summary' | 'notes' | '
 const API_URL = 'https://tmac-crm-api.onrender.com';
 
 const emptyClientForm = {
+  title: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -385,6 +387,7 @@ const commsVariance = commsAllowance - totalComms;
 
   function populateClientWorkspace(client: Client) {
     setEditForm({
+      title: client.title || '',
       firstName: client.firstName || '',
       lastName: client.lastName || '',
       email: client.email || '',
@@ -719,6 +722,22 @@ const commsVariance = commsAllowance - totalComms;
 
             <div className="form-grid">
               <div>
+  <label>Title</label>
+  <select
+    value={clientForm.title}
+    onChange={(e) => updateClientForm('title', e.target.value)}
+  >
+    <option value="">Select title</option>
+    <option value="Mr">Mr</option>
+    <option value="Mrs">Mrs</option>
+    <option value="Miss">Miss</option>
+    <option value="Ms">Ms</option>
+    <option value="Dr">Dr</option>
+    <option value="Mx">Mx</option>
+    <option value="Other">Other</option>
+  </select>
+</div>
+              <div>
                 <label>First name</label>
                 <input value={clientForm.firstName} onChange={(e) => updateClientForm('firstName', e.target.value)} />
               </div>
@@ -826,7 +845,7 @@ const commsVariance = commsAllowance - totalComms;
               ) : (
                 filteredClients.map((client) => (
                   <tr key={client.id} className="clickable-row" onClick={() => openClient(client)}>
-                    <td><strong>{client.firstName} {client.lastName}</strong></td>
+                    <td><strong>{client.title ? `${client.title} ` : ''}{client.firstName} {client.lastName}</strong></td>
                     <td>{client.email || '-'}</td>
                     <td>{client.mobile || '-'}</td>
                     <td>{client.postcode || '-'}</td>
@@ -850,7 +869,7 @@ const commsVariance = commsAllowance - totalComms;
         <div className="client-header premium-client-header">
           <div>
             <div className="client-title-row">
-              <h3>{selectedClient.firstName} {selectedClient.lastName}</h3>
+              <h3>{selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h3>
               <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
             </div>
 
@@ -897,6 +916,22 @@ const commsVariance = commsAllowance - totalComms;
           <section className="detail-section">
             <h4>Personal details</h4>
             <div className="form-grid">
+              <div>
+  <label>Title</label>
+  <select
+    value={editForm.title}
+    onChange={(e) => updateEditForm('title', e.target.value)}
+  >
+    <option value="">Select title</option>
+    <option value="Mr">Mr</option>
+    <option value="Mrs">Mrs</option>
+    <option value="Miss">Miss</option>
+    <option value="Ms">Ms</option>
+    <option value="Dr">Dr</option>
+    <option value="Mx">Mx</option>
+    <option value="Other">Other</option>
+  </select>
+</div>
               <div>
                 <label>First name</label>
                 <input value={editForm.firstName} onChange={(e) => updateEditForm('firstName', e.target.value)} />
@@ -1540,7 +1575,7 @@ function renderSummaryTab() {
         <header className="page-header premium-header">
           <div>
             <div className="eyebrow">Client Record</div>
-            <h2>{selectedClient.firstName} {selectedClient.lastName}</h2>
+            <h2>{selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h2>
             <p>Full client workspace and case file.</p>
           </div>
           <div className="header-actions">
