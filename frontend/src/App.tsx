@@ -1,4 +1,4 @@
-
+import { useEffect, useMemo, useState } from 'react';
 
 type Note = {
   id: string;
