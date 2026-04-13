@@ -533,10 +533,11 @@ const totalDebt = totalSecuredDebt + totalUnsecuredDebt;
       ...emptyExpenditureData,
       ...(client.metadataJson?.expenditure || {}),
     });
-  }
-setDebts(client.metadataJson?.debts || []);
+    setDebts(client.metadataJson?.debts || []);
 setDebtForm(emptyDebtForm);
 setCreditorSearch('');
+  }
+
   async function openClient(client: Client) {
     setShowAddClient(false);
     setSuccess('');
