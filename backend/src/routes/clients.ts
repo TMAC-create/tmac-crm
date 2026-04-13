@@ -17,10 +17,21 @@ const statusEnum = z.enum([
   'LOST',
 ]);
 
+const debtItemSchema = z.object({
+  id: z.string(),
+  creditorName: z.string(),
+  referenceNumber: z.string().optional().or(z.literal('')),
+  debtType: z.string(),
+  classification: z.enum(['SECURED', 'UNSECURED']),
+  balance: z.string().optional().or(z.literal('')),
+  monthlyPayment: z.string().optional().or(z.literal('')),
+});
+
 const metadataSchema = z
   .object({
     income: z.record(z.string(), z.any()).optional(),
     expenditure: z.record(z.string(), z.any()).optional(),
+    debts: z.array(debtItemSchema).optional(),
   })
   .optional();
 
