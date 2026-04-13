@@ -41,7 +41,14 @@ type Client = {
 };
 
 type View = 'dashboard' | 'clients' | 'tasks' | 'reporting' | 'admin';
-type ClientTab = 'overview' | 'income' | 'expenditure' | 'summary' | 'notes' | 'activity';
+type ClientTab =
+  | 'overview'
+  | 'income'
+  | 'expenditure'
+  | 'summary'
+  | 'debts'
+  | 'notes'
+  | 'activity';
 
 const API_URL = 'https://tmac-crm-api.onrender.com';
 
@@ -1490,6 +1497,21 @@ function renderSummaryTab() {
     </section>
   );
 }
+  function renderDebtsTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="detail-sections">
+        <section className="detail-section">
+          <h4>Debts / Creditors</h4>
+          <p className="muted-text">
+            This section will hold secured and unsecured creditor records, debt totals,
+            and creditor search.
+          </p>
+        </section>
+      </div>
+    </section>
+  );
+}
   function renderNotesTab() {
   if (!selectedClient) return null;
 
@@ -1595,6 +1617,7 @@ function renderSummaryTab() {
               ['income', 'Income'],
               ['expenditure', 'Expenditure'],
               ['summary', 'I&E + Disposable Income'],
+              ['debts', 'Debts / Creditors'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -1613,6 +1636,7 @@ function renderSummaryTab() {
             {clientTab === 'income' && renderIncomeTab()}
             {clientTab === 'expenditure' && renderExpenditureTab()}
             {clientTab === 'summary' && renderSummaryTab()}
+            {clientTab === 'debts' && renderDebtsTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
