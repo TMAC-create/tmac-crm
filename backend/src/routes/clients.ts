@@ -25,6 +25,7 @@ const metadataSchema = z
   .optional();
 
 const clientSchema = z.object({
+  title: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email().optional().or(z.literal('')),
@@ -91,6 +92,7 @@ clientsRouter.post('/', async (req, res) => {
 
   const client = await prisma.client.create({
     data: {
+      title: parsed.data.title || null,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       email: parsed.data.email || null,
@@ -140,6 +142,7 @@ clientsRouter.patch('/:id', async (req, res) => {
   const updated = await prisma.client.update({
     where: { id: req.params.id },
     data: {
+      title: parsed.data.title || null,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       email: parsed.data.email || null,
