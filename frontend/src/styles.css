@@ -1211,3 +1211,148 @@ dd { margin: 0; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 }
+.loan-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  background: #f9fafb;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.loan-header-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.loan-header-main span {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.loan-header-main strong {
+  font-size: 38px;
+  line-height: 1;
+  color: #111827;
+}
+
+.loan-header-side {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.loan-header-side span {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.loan-header-side strong {
+  font-size: 24px;
+  color: #111827;
+}
+
+.safe {
+  color: #059669;
+}
+
+.danger {
+  color: #dc2626;
+}
+
+.loan-build-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loan-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.loan-line span {
+  color: var(--muted);
+}
+
+.loan-line strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.loan-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.loan-decisions {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.decision-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: #f9fafb;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.decision-row span {
+  font-weight: 600;
+  color: #111827;
+}
+
+.decision-row select {
+  max-width: 220px;
+}
+
+@media (max-width: 980px) {
+  .loan-header {
+    flex-direction: column;
+  }
+
+  .loan-header-side {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .security-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .decision-row select {
+    max-width: 100%;
+    width: 100%;
+  }
+}
