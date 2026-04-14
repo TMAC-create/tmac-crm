@@ -1705,3 +1705,15 @@ dd { margin: 0; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 }
+.dashboard-section-header {
+  margin-bottom: 10px;
+}
+
+.dashboard-section-header h3 {
+  margin-bottom: 4px;
+}
+
+.dashboard-section-header span {
+  color: #6b7280;
+  font-size: 13px;
+}
