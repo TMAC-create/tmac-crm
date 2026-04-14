@@ -976,22 +976,22 @@ function deleteCreditor(id: string) {
 </div>
 <div className="dashboard-performance">
   <div className="performance-card">
-    <span>Qualified</span>
+    <span>New leads in pipeline</span>
+    <strong>{clients.filter(c => c.status === 'NEW_LEAD').length}</strong>
+  </div>
+
+  <div className="performance-card">
+    <span>Qualified in pipeline</span>
     <strong>{clients.filter(c => c.status === 'QUALIFIED').length}</strong>
   </div>
 
   <div className="performance-card">
-    <span>Submitted</span>
+    <span>Submitted in pipeline</span>
     <strong>{clients.filter(c => c.status === 'SUBMITTED').length}</strong>
   </div>
 
   <div className="performance-card">
-    <span>Approved</span>
-    <strong>{clients.filter(c => c.status === 'APPROVED').length}</strong>
-  </div>
-
-  <div className="performance-card">
-    <span>Completed</span>
+    <span>Completed in pipeline</span>
     <strong>{clients.filter(c => c.status === 'COMPLETED').length}</strong>
   </div>
 </div>
