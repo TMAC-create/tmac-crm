@@ -897,6 +897,16 @@ function deleteCreditor(id: string) {
       const d = new Date(client.createdAt);
       return d.toDateString() === now.toDateString();
     }).length;
+    const addedThisWeek = clients.filter((client) => {
+  const created = new Date(client.createdAt);
+  const now = new Date();
+
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  return created >= startOfWeek;
+}).length;
 
     const thisMonthCount = clients.filter((client) => {
       const d = new Date(client.createdAt);
@@ -943,24 +953,27 @@ function deleteCreditor(id: string) {
           </div>
         </header>
 
-        <section className="hero-mi-grid">
-          <div className="hero-mi-card">
-            <span>Added today</span>
-            <strong>{todayCount}</strong>
-          </div>
-          <div className="hero-mi-card">
-            <span>Added this month</span>
-            <strong>{thisMonthCount}</strong>
-          </div>
-          <div className="hero-mi-card">
-            <span>Added this year</span>
-            <strong>{thisYearCount}</strong>
-          </div>
-          <div className="hero-mi-card accent">
-            <span>Total clients</span>
-            <strong>{clients.length}</strong>
-          </div>
-        </section>
+        <div className="dashboard-hero">
+  <div className="dashboard-metric">
+    <span>Leads today</span>
+    <strong>{todayCount}</strong>
+  </div>
+
+  <div className="dashboard-metric">
+    <span>Leads this week</span>
+    <strong>{addedThisWeek}</strong>
+  </div>
+
+  <div className="dashboard-metric">
+    <span>Leads this month</span>
+    <strong>{thisMonthCount}</strong>
+  </div>
+
+  <div className="dashboard-metric highlight">
+    <span>Total leads</span>
+    <strong>{clients.length}</strong>
+  </div>
+</div>
 
         <section className="dashboard-premium-grid">
           <section className="card dashboard-panel premium-panel">
