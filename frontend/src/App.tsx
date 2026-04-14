@@ -2057,126 +2057,117 @@ function renderSummaryTab() {
     </section>
   );
 }
-  function renderLoanTab() {
+ function renderLoanTab() {
   return (
     <section className="card premium-panel tab-panel">
-      <div className="summary-grid">
-        <div className="summary-box">
-          <span>Unsecured debt amount</span>
-          <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
+      <div className="loan-header">
+        <div className="loan-header-main">
+          <span>Final Loan Amount</span>
+          <strong>£{finalLoanAmount.toFixed(0)}</strong>
         </div>
 
-        <div className="loan-header">
-  <div className="loan-header-main">
-    <span>Final Loan Amount</span>
-    <strong>£{finalLoanAmount.toFixed(0)}</strong>
-  </div>
+        <div className="loan-header-side">
+          <div>
+            <span>Post LTV</span>
+            <strong className={postCompletionLtv > 85 ? 'danger' : 'safe'}>
+              {postCompletionLtv.toFixed(2)}%
+            </strong>
+          </div>
 
-  <div className="loan-header-side">
-    <div>
-      <span>Post LTV</span>
-      <strong className={postCompletionLtv > 85 ? 'danger' : 'safe'}>
-        {postCompletionLtv.toFixed(2)}%
-      </strong>
-    </div>
-
-    <div>
-      <span>Total Secured After</span>
-      <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
-    </div>
-  </div>
-</div>
+          <div>
+            <span>Total Secured After</span>
+            <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
+          </div>
+        </div>
+      </div>
 
       <div className="detail-sections">
         <section className="detail-section">
           <h4>Loan build</h4>
 
-          <section className="detail-section">
-  <h4>Loan build</h4>
+          <div className="loan-build-grid">
+            <div className="loan-line">
+              <span>Unsecured debts</span>
+              <strong>£{totalUnsecuredDebt.toFixed(0)}</strong>
+            </div>
 
-  <div className="loan-build-grid">
-    <div className="loan-line">
-      <span>Unsecured debts</span>
-      <strong>£{totalUnsecuredDebt.toFixed(0)}</strong>
-    </div>
+            <div className="loan-line">
+              <span>Further advance</span>
+              <strong>£{furtherAdvanceNumber.toFixed(0)}</strong>
+            </div>
 
-    <div className="loan-line">
-      <span>Further advance</span>
-      <strong>£{furtherAdvanceNumber.toFixed(0)}</strong>
-    </div>
+            <div className="loan-line">
+              <span>Secured loans included</span>
+              <strong>£{includedSecuredLoanAmount.toFixed(0)}</strong>
+            </div>
 
-    <div className="loan-line">
-      <span>Secured loans included</span>
-      <strong>£{includedSecuredLoanAmount.toFixed(0)}</strong>
-    </div>
+            <div className="loan-line">
+              <span>Hire purchase included</span>
+              <strong>£{includedHpAmount.toFixed(0)}</strong>
+            </div>
 
-    <div className="loan-line">
-      <span>Hire purchase included</span>
-      <strong>£{includedHpAmount.toFixed(0)}</strong>
-    </div>
-
-    <div className="loan-total">
-      <span>Total loan</span>
-      <strong>£{finalLoanAmount.toFixed(0)}</strong>
-    </div>
-  </div>
-</section>
+            <div className="loan-total">
+              <span>Total loan</span>
+              <strong>£{finalLoanAmount.toFixed(0)}</strong>
+            </div>
+          </div>
+        </section>
 
         <section className="detail-section">
           <h4>Security position</h4>
 
           <div className="security-grid">
-  <div>
-    <label>Property value</label>
-    <input
-      value={loanForm.propertyValue}
-      onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
-    />
-  </div>
+            <div>
+              <label>Property value</label>
+              <input
+                value={loanForm.propertyValue}
+                onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
+              />
+            </div>
 
-  <div>
-    <label>Mortgage</label>
-    <input value={mortgageBalance.toFixed(0)} readOnly />
-  </div>
+            <div>
+              <label>Mortgage</label>
+              <input value={mortgageBalance.toFixed(0)} readOnly />
+            </div>
 
-  <div>
-    <label>Secured loans</label>
-    <input value={securedLoanBalance.toFixed(0)} readOnly />
-  </div>
+            <div>
+              <label>Secured loans</label>
+              <input value={securedLoanBalance.toFixed(0)} readOnly />
+            </div>
 
-  <div>
-    <label>Hire purchase</label>
-    <input value={hirePurchaseBalance.toFixed(0)} readOnly />
-  </div>
-</div>
+            <div>
+              <label>Hire purchase</label>
+              <input value={hirePurchaseBalance.toFixed(0)} readOnly />
+            </div>
+          </div>
 
           <div className="loan-decisions">
-  {hirePurchaseBalance > 0 && (
-    <div className="decision-row">
-      <span>Include hire purchase?</span>
-      <select
-        value={loanForm.includeHirePurchase}
-        onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
-      >
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
-    </div>
-  )}
+            {hirePurchaseBalance > 0 && (
+              <div className="decision-row">
+                <span>Include hire purchase?</span>
+                <select
+                  value={loanForm.includeHirePurchase}
+                  onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+            )}
 
-  {securedLoanBalance > 0 && (
-    <div className="decision-row">
-      <span>Refinance secured loans?</span>
-      <select
-        value={loanForm.includeSecuredLoans}
-        onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
-      >
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
-    </div>
-  )}
-</div>
+            {securedLoanBalance > 0 && (
+              <div className="decision-row">
+                <span>Refinance secured loans?</span>
+                <select
+                  value={loanForm.includeSecuredLoans}
+                  onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="detail-section">
@@ -2185,17 +2176,17 @@ function renderSummaryTab() {
           <div className="summary-grid">
             <div className="summary-box">
               <span>Total existing secured balances</span>
-              <strong>£{totalExistingSecuredBalances.toFixed(2)}</strong>
+              <strong>£{totalExistingSecuredBalances.toFixed(0)}</strong>
             </div>
 
             <div className="summary-box">
               <span>Secured balances remaining outside new loan</span>
-              <strong>£{securedBalancesRemainingOutsideNewLoan.toFixed(2)}</strong>
+              <strong>£{securedBalancesRemainingOutsideNewLoan.toFixed(0)}</strong>
             </div>
 
             <div className="summary-box">
               <span>Total secured after completion</span>
-              <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(2)}</strong>
+              <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
             </div>
 
             <div className="summary-box highlight">
@@ -2208,7 +2199,7 @@ function renderSummaryTab() {
             {[100, 95, 90, 85, 80, 75].map((ltv) => (
               <div key={ltv} className="ltv-card">
                 <span>{ltv}% LTV max loan</span>
-                <strong>£{maxLoanAtLtv(ltv).toFixed(2)}</strong>
+                <strong>£{maxLoanAtLtv(ltv).toFixed(0)}</strong>
               </div>
             ))}
           </div>
@@ -2227,20 +2218,21 @@ function renderSummaryTab() {
 
         <section className="detail-section">
           <h4>Useful case MI</h4>
+
           <div className="summary-grid">
             <div className="summary-box">
               <span>Total household income</span>
-              <strong>£{totalIncome.toFixed(2)}</strong>
+              <strong>£{totalIncome.toFixed(0)}</strong>
             </div>
 
             <div className="summary-box">
               <span>Total expenditure</span>
-              <strong>£{totalExpenditure.toFixed(2)}</strong>
+              <strong>£{totalExpenditure.toFixed(0)}</strong>
             </div>
 
             <div className="summary-box highlight">
               <span>Disposable income</span>
-              <strong>£{disposableIncome.toFixed(2)}</strong>
+              <strong>£{disposableIncome.toFixed(0)}</strong>
             </div>
           </div>
         </section>
