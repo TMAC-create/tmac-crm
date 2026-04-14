@@ -2066,136 +2066,117 @@ function renderSummaryTab() {
           <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
         </div>
 
-        <div className="summary-box">
-          <span>Further advance</span>
-          <strong>£{furtherAdvanceNumber.toFixed(2)}</strong>
-        </div>
+        <div className="loan-header">
+  <div className="loan-header-main">
+    <span>Final Loan Amount</span>
+    <strong>£{finalLoanAmount.toFixed(0)}</strong>
+  </div>
 
-        <div className="summary-box">
-          <span>Secured loans included</span>
-          <strong>£{includedSecuredLoanAmount.toFixed(2)}</strong>
-        </div>
+  <div className="loan-header-side">
+    <div>
+      <span>Post LTV</span>
+      <strong className={postCompletionLtv > 85 ? 'danger' : 'safe'}>
+        {postCompletionLtv.toFixed(2)}%
+      </strong>
+    </div>
 
-        <div className="summary-box">
-          <span>Hire purchase included</span>
-          <strong>£{includedHpAmount.toFixed(2)}</strong>
-        </div>
-
-        <div className="summary-box highlight">
-          <span>Final loan amount</span>
-          <strong>£{finalLoanAmount.toFixed(2)}</strong>
-        </div>
-
-        <div className="summary-box">
-          <span>Post-completion LTV</span>
-          <strong>{postCompletionLtv.toFixed(2)}%</strong>
-        </div>
-      </div>
+    <div>
+      <span>Total Secured After</span>
+      <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
+    </div>
+  </div>
+</div>
 
       <div className="detail-sections">
         <section className="detail-section">
           <h4>Loan build</h4>
 
-          <div className="form-grid">
-            <div>
-              <label>Initial loan amount</label>
-              <input
-                value={loanForm.initialLoanAmount}
-                onChange={(e) => updateLoanForm('initialLoanAmount', e.target.value)}
-                placeholder="For later API / lead source use"
-              />
-            </div>
+          <section className="detail-section">
+  <h4>Loan build</h4>
 
-            <div>
-              <label>Unsecured debt amount</label>
-              <input value={totalUnsecuredDebt.toFixed(2)} readOnly />
-            </div>
+  <div className="loan-build-grid">
+    <div className="loan-line">
+      <span>Unsecured debts</span>
+      <strong>£{totalUnsecuredDebt.toFixed(0)}</strong>
+    </div>
 
-            <div>
-              <label>Further loan advance</label>
-              <input
-                value={loanForm.furtherAdvance}
-                onChange={(e) => updateLoanForm('furtherAdvance', e.target.value)}
-              />
-            </div>
+    <div className="loan-line">
+      <span>Further advance</span>
+      <strong>£{furtherAdvanceNumber.toFixed(0)}</strong>
+    </div>
 
-            <div>
-              <label>Final loan amount</label>
-              <input value={finalLoanAmount.toFixed(2)} readOnly />
-            </div>
-          </div>
-        </section>
+    <div className="loan-line">
+      <span>Secured loans included</span>
+      <strong>£{includedSecuredLoanAmount.toFixed(0)}</strong>
+    </div>
+
+    <div className="loan-line">
+      <span>Hire purchase included</span>
+      <strong>£{includedHpAmount.toFixed(0)}</strong>
+    </div>
+
+    <div className="loan-total">
+      <span>Total loan</span>
+      <strong>£{finalLoanAmount.toFixed(0)}</strong>
+    </div>
+  </div>
+</section>
 
         <section className="detail-section">
           <h4>Security position</h4>
 
-          <div className="form-grid">
-            <div>
-              <label>Property value</label>
-              <input
-                value={loanForm.propertyValue}
-                onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
-              />
-            </div>
+          <div className="security-grid">
+  <div>
+    <label>Property value</label>
+    <input
+      value={loanForm.propertyValue}
+      onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
+    />
+  </div>
 
-            <div>
-              <label>Mortgage balance</label>
-              <input value={mortgageBalance.toFixed(2)} readOnly />
-            </div>
+  <div>
+    <label>Mortgage</label>
+    <input value={mortgageBalance.toFixed(0)} readOnly />
+  </div>
 
-            <div>
-              <label>Secured loan balance(s)</label>
-              <input value={securedLoanBalance.toFixed(2)} readOnly />
-            </div>
+  <div>
+    <label>Secured loans</label>
+    <input value={securedLoanBalance.toFixed(0)} readOnly />
+  </div>
 
-            <div>
-              <label>Hire purchase balance</label>
-              <input value={hirePurchaseBalance.toFixed(2)} readOnly />
-            </div>
-          </div>
+  <div>
+    <label>Hire purchase</label>
+    <input value={hirePurchaseBalance.toFixed(0)} readOnly />
+  </div>
+</div>
 
-          {hirePurchaseBalance > 0 && (
-            <div className="loan-warning-box">
-              <strong>Hire Purchase detected</strong>
-              <p>
-                There is HP in the debt list. Decide whether it should be included in the loan raise.
-              </p>
-              <div className="form-grid">
-                <div>
-                  <label>Include hire purchase in final loan amount?</label>
-                  <select
-                    value={loanForm.includeHirePurchase}
-                    onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
-                  >
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="loan-decisions">
+  {hirePurchaseBalance > 0 && (
+    <div className="decision-row">
+      <span>Include hire purchase?</span>
+      <select
+        value={loanForm.includeHirePurchase}
+        onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
+      >
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+    </div>
+  )}
 
-          {securedLoanBalance > 0 && (
-            <div className="loan-warning-box">
-              <strong>Secured loans detected</strong>
-              <p>
-                There are secured loans in the debt list. Decide whether they should be refinanced
-                into the final loan amount.
-              </p>
-              <div className="form-grid">
-                <div>
-                  <label>Include secured loans in final loan amount?</label>
-                  <select
-                    value={loanForm.includeSecuredLoans}
-                    onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
-                  >
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+  {securedLoanBalance > 0 && (
+    <div className="decision-row">
+      <span>Refinance secured loans?</span>
+      <select
+        value={loanForm.includeSecuredLoans}
+        onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
+      >
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+    </div>
+  )}
+</div>
         </section>
 
         <section className="detail-section">
