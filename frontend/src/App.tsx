@@ -72,6 +72,7 @@ type ClientTab =
   | 'summary'
   | 'debts'
   | 'loan'
+  | 'documents'
   | 'notes'
   | 'activity';
 
