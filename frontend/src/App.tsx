@@ -2060,116 +2060,157 @@ function renderSummaryTab() {
  function renderLoanTab() {
   return (
     <section className="card premium-panel tab-panel">
-      <div className="loan-header">
-        <div className="loan-header-main">
-          <span>Final Loan Amount</span>
-          <strong>£{finalLoanAmount.toFixed(0)}</strong>
-        </div>
+      <div className="loan-hero">
+  <div className="loan-hero-main">
+    <span className="loan-hero-label">Deal amount</span>
+    <strong>£{finalLoanAmount.toFixed(0)}</strong>
+    <small>
+      Built from unsecured debts, further advance, and any included secured loans / HP.
+    </small>
+  </div>
 
-        <div className="loan-header-side">
-          <div>
-            <span>Post LTV</span>
-            <strong className={postCompletionLtv > 85 ? 'danger' : 'safe'}>
-              {postCompletionLtv.toFixed(2)}%
-            </strong>
-          </div>
+  <div className="loan-hero-metrics">
+    <div className="loan-hero-card">
+      <span>Post LTV</span>
+      <strong className={postCompletionLtv > 85 ? 'danger' : 'safe'}>
+        {postCompletionLtv.toFixed(2)}%
+      </strong>
+    </div>
 
-          <div>
-            <span>Total Secured After</span>
-            <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
-          </div>
-        </div>
-      </div>
+    <div className="loan-hero-card">
+      <span>Total secured after completion</span>
+      <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(0)}</strong>
+    </div>
+
+    <div className="loan-hero-card emphasis">
+      <span>Disposable income</span>
+      <strong>£{disposableIncome.toFixed(0)}</strong>
+    </div>
+  </div>
+</div>
 
       <div className="detail-sections">
         <section className="detail-section">
-          <h4>Loan build</h4>
+  <h4>Loan build</h4>
 
-          <div className="loan-build-grid">
-            <div className="loan-line">
-              <span>Unsecured debts</span>
-              <strong>£{totalUnsecuredDebt.toFixed(0)}</strong>
-            </div>
+  <div className="loan-build-panel">
+    <div className="loan-build-left">
+      <div className="loan-line">
+        <span>Unsecured debts</span>
+        <strong>£{totalUnsecuredDebt.toFixed(0)}</strong>
+      </div>
 
-            <div className="loan-line">
-              <span>Further advance</span>
-              <strong>£{furtherAdvanceNumber.toFixed(0)}</strong>
-            </div>
+      <div className="loan-line">
+        <span>Further advance</span>
+        <strong>£{furtherAdvanceNumber.toFixed(0)}</strong>
+      </div>
 
-            <div className="loan-line">
-              <span>Secured loans included</span>
-              <strong>£{includedSecuredLoanAmount.toFixed(0)}</strong>
-            </div>
+      <div className="loan-line">
+        <span>Secured loans included</span>
+        <strong>£{includedSecuredLoanAmount.toFixed(0)}</strong>
+      </div>
 
-            <div className="loan-line">
-              <span>Hire purchase included</span>
-              <strong>£{includedHpAmount.toFixed(0)}</strong>
-            </div>
+      <div className="loan-line">
+        <span>Hire purchase included</span>
+        <strong>£{includedHpAmount.toFixed(0)}</strong>
+      </div>
 
-            <div className="loan-total">
-              <span>Total loan</span>
-              <strong>£{finalLoanAmount.toFixed(0)}</strong>
-            </div>
-          </div>
-        </section>
+      <div className="loan-total">
+        <span>Total loan</span>
+        <strong>£{finalLoanAmount.toFixed(0)}</strong>
+      </div>
+    </div>
+
+    <div className="loan-build-right">
+      <div>
+        <label>Initial loan amount</label>
+        <input
+          value={loanForm.initialLoanAmount}
+          onChange={(e) => updateLoanForm('initialLoanAmount', e.target.value)}
+          placeholder="For later API / lead source use"
+        />
+      </div>
+
+      <div>
+        <label>Further advance</label>
+        <input
+          value={loanForm.furtherAdvance}
+          onChange={(e) => updateLoanForm('furtherAdvance', e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label>Final loan amount</label>
+        <input value={finalLoanAmount.toFixed(0)} readOnly />
+      </div>
+    </div>
+  </div>
+</section>
 
         <section className="detail-section">
-          <h4>Security position</h4>
+  <h4>Security position</h4>
 
-          <div className="security-grid">
-            <div>
-              <label>Property value</label>
-              <input
-                value={loanForm.propertyValue}
-                onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
-              />
-            </div>
+  <div className="security-panel">
+    <div className="security-grid">
+      <div className="security-card editable">
+        <label>Property value</label>
+        <input
+          value={loanForm.propertyValue}
+          onChange={(e) => updateLoanForm('propertyValue', e.target.value)}
+        />
+      </div>
 
-            <div>
-              <label>Mortgage</label>
-              <input value={mortgageBalance.toFixed(0)} readOnly />
-            </div>
+      <div className="security-card">
+        <span>Mortgage</span>
+        <strong>£{mortgageBalance.toFixed(0)}</strong>
+      </div>
 
-            <div>
-              <label>Secured loans</label>
-              <input value={securedLoanBalance.toFixed(0)} readOnly />
-            </div>
+      <div className="security-card">
+        <span>Secured loans</span>
+        <strong>£{securedLoanBalance.toFixed(0)}</strong>
+      </div>
 
-            <div>
-              <label>Hire purchase</label>
-              <input value={hirePurchaseBalance.toFixed(0)} readOnly />
-            </div>
+      <div className="security-card">
+        <span>Hire purchase</span>
+        <strong>£{hirePurchaseBalance.toFixed(0)}</strong>
+      </div>
+    </div>
+
+    <div className="loan-decisions premium-decisions">
+      {hirePurchaseBalance > 0 && (
+        <div className="decision-row">
+          <div>
+            <strong>Hire purchase</strong>
+            <p>Decide whether HP should be rolled into the final raise.</p>
           </div>
+          <select
+            value={loanForm.includeHirePurchase}
+            onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
+          >
+            <option value="no">Do not include</option>
+            <option value="yes">Include in loan</option>
+          </select>
+        </div>
+      )}
 
-          <div className="loan-decisions">
-            {hirePurchaseBalance > 0 && (
-              <div className="decision-row">
-                <span>Include hire purchase?</span>
-                <select
-                  value={loanForm.includeHirePurchase}
-                  onChange={(e) => updateLoanForm('includeHirePurchase', e.target.value)}
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </div>
-            )}
-
-            {securedLoanBalance > 0 && (
-              <div className="decision-row">
-                <span>Refinance secured loans?</span>
-                <select
-                  value={loanForm.includeSecuredLoans}
-                  onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </div>
-            )}
+      {securedLoanBalance > 0 && (
+        <div className="decision-row">
+          <div>
+            <strong>Secured loans</strong>
+            <p>Decide whether existing secured loans should be refinanced.</p>
           </div>
-        </section>
-
+          <select
+            value={loanForm.includeSecuredLoans}
+            onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
+          >
+            <option value="no">Do not refinance</option>
+            <option value="yes">Refinance into loan</option>
+          </select>
+        </div>
+      )}
+    </div>
+  </div>
+</section>
         <section className="detail-section">
           <h4>LTV and lending headroom</h4>
 
