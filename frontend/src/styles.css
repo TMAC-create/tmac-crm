@@ -1645,56 +1645,58 @@ dd { margin: 0; font-weight: 600; }
 }
 
 .dashboard-metric {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  background: #ffffff;
+  border: 1px solid #e6ebf2;
+  border-radius: 20px;
+  padding: 20px 20px 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
 .dashboard-metric span {
   display: block;
   font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 6px;
+  color: #6b7280;
+  margin-bottom: 8px;
 }
 
 .dashboard-metric strong {
   display: block;
-  font-size: 30px;
+  font-size: 34px;
   line-height: 1;
-  color: #111827;
+  color: #0f172a;
 }
 
 .dashboard-metric.highlight {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  background: linear-gradient(135deg, #ecfdf5 0%, #dff7ea 100%);
+  border-color: #c7ead7;
 }
 
 .dashboard-performance {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 
 .performance-card {
-  background: #f8fafc;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e6ebf2;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.03);
 }
 
 .performance-card span {
   display: block;
   font-size: 12px;
-  color: var(--muted);
+  color: #6b7280;
   margin-bottom: 6px;
 }
 
 .performance-card strong {
   display: block;
-  font-size: 24px;
-  color: #111827;
+  font-size: 26px;
+  color: #0f172a;
 }
 
 @media (max-width: 900px) {
