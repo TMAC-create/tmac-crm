@@ -2060,28 +2060,36 @@ function renderSummaryTab() {
   function renderLoanTab() {
   return (
     <section className="card premium-panel tab-panel">
-   <div className="summary-grid">
-  <div className="summary-box">
-    <span>Unsecured debt amount</span>
-    <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
-  </div>
-  <div className="summary-box">
-    <span>Further advance</span>
-    <strong>£{furtherAdvanceNumber.toFixed(2)}</strong>
-  </div>
-  <div className="summary-box">
-    <span>Secured loans included</span>
-    <strong>£{includedSecuredLoanAmount.toFixed(2)}</strong>
-  </div>
-  <div className="summary-box highlight">
-    <span>Final loan amount</span>
-    <strong>£{finalLoanAmount.toFixed(2)}</strong>
-  </div>
-  <div className="summary-box">
-    <span>Post-completion LTV</span>
-    <strong>{postCompletionLtv.toFixed(2)}%</strong>
-  </div>
-</div>
+      <div className="summary-grid">
+        <div className="summary-box">
+          <span>Unsecured debt amount</span>
+          <strong>£{totalUnsecuredDebt.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-box">
+          <span>Further advance</span>
+          <strong>£{furtherAdvanceNumber.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-box">
+          <span>Secured loans included</span>
+          <strong>£{includedSecuredLoanAmount.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-box">
+          <span>Hire purchase included</span>
+          <strong>£{includedHpAmount.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-box highlight">
+          <span>Final loan amount</span>
+          <strong>£{finalLoanAmount.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-box">
+          <span>Post-completion LTV</span>
+          <strong>{postCompletionLtv.toFixed(2)}%</strong>
+        </div>
       </div>
 
       <div className="detail-sections">
@@ -2166,27 +2174,28 @@ function renderSummaryTab() {
               </div>
             </div>
           )}
+
           {securedLoanBalance > 0 && (
-  <div className="loan-warning-box">
-    <strong>Secured loans detected</strong>
-    <p>
-      There are secured loans in the debt list. Decide whether they should be refinanced
-      into the final loan amount.
-    </p>
-    <div className="form-grid">
-      <div>
-        <label>Include secured loans in final loan amount?</label>
-        <select
-          value={loanForm.includeSecuredLoans}
-          onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
-        >
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
-        </select>
-      </div>
-    </div>
-  </div>
-)}
+            <div className="loan-warning-box">
+              <strong>Secured loans detected</strong>
+              <p>
+                There are secured loans in the debt list. Decide whether they should be refinanced
+                into the final loan amount.
+              </p>
+              <div className="form-grid">
+                <div>
+                  <label>Include secured loans in final loan amount?</label>
+                  <select
+                    value={loanForm.includeSecuredLoans}
+                    onChange={(e) => updateLoanForm('includeSecuredLoans', e.target.value)}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="detail-section">
@@ -2197,10 +2206,17 @@ function renderSummaryTab() {
               <span>Total existing secured balances</span>
               <strong>£{totalExistingSecuredBalances.toFixed(2)}</strong>
             </div>
+
+            <div className="summary-box">
+              <span>Secured balances remaining outside new loan</span>
+              <strong>£{securedBalancesRemainingOutsideNewLoan.toFixed(2)}</strong>
+            </div>
+
             <div className="summary-box">
               <span>Total secured after completion</span>
               <strong>£{totalSecuredBorrowingAfterCompletion.toFixed(2)}</strong>
             </div>
+
             <div className="summary-box highlight">
               <span>Post-completion LTV</span>
               <strong>{postCompletionLtv.toFixed(2)}%</strong>
@@ -2235,10 +2251,12 @@ function renderSummaryTab() {
               <span>Total household income</span>
               <strong>£{totalIncome.toFixed(2)}</strong>
             </div>
+
             <div className="summary-box">
               <span>Total expenditure</span>
               <strong>£{totalExpenditure.toFixed(2)}</strong>
             </div>
+
             <div className="summary-box highlight">
               <span>Disposable income</span>
               <strong>£{disposableIncome.toFixed(2)}</strong>
