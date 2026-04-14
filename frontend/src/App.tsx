@@ -2281,6 +2281,37 @@ function renderSummaryTab() {
     </section>
   );
 }
+  function renderDocumentsTab() {
+  return (
+    <section className="card premium-panel tab-panel">
+      <h3>Client Documents</h3>
+
+      <div className="documents-grid">
+        {[
+          'Proof of ID',
+          'Proof of Address',
+          'Proof of Income',
+          'Other Documents',
+        ].map((section) => (
+          <div key={section} className="document-card">
+            <div className="document-card-header">
+              <h4>{section}</h4>
+            </div>
+
+            <div className="document-upload">
+              <input type="file" />
+
+              <div className="upload-placeholder">
+                <span>Drag & drop or upload file</span>
+                <small>PDF, JPG, PNG</small>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 function renderNotesTab() {
   if (!selectedClient) return null;
 
@@ -2388,6 +2419,7 @@ function renderNotesTab() {
               ['summary', 'I&E + Disposable Income'],
               ['debts', 'Debts / Creditors'],
               ['loan', 'Loan'],
+              ['documents', 'Documents'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -2408,6 +2440,7 @@ function renderNotesTab() {
             {clientTab === 'summary' && renderSummaryTab()}
             {clientTab === 'debts' && renderDebtsTab()}
             {clientTab === 'loan' && renderLoanTab()}
+            {clientTab === 'documents' && renderDocumentsTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
