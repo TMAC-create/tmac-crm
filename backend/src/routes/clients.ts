@@ -32,6 +32,7 @@ const loanSchema = z.object({
   furtherAdvance: z.string().optional().or(z.literal('')),
   propertyValue: z.string().optional().or(z.literal('')),
   includeHirePurchase: z.enum(['yes', 'no']).optional(),
+  includeSecuredLoans: z.enum(['yes', 'no']).optional(),
   notes: z.string().optional().or(z.literal('')),
 });
 
