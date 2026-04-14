@@ -1717,3 +1717,16 @@ dd { margin: 0; font-weight: 600; }
   color: #6b7280;
   font-size: 13px;
 }
+.dashboard-hero {
+  margin-bottom: 12px; /* tighter */
+}
+
+.dashboard-performance {
+  margin-bottom: 28px;
+}
+
+/* group the two rows visually */
+.dashboard-hero,
+.dashboard-performance {
+  padding: 8px 0;
+}
