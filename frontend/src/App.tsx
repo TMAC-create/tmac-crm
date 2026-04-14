@@ -974,7 +974,27 @@ function deleteCreditor(id: string) {
     <strong>{clients.length}</strong>
   </div>
 </div>
+<div className="dashboard-performance">
+  <div className="performance-card">
+    <span>Qualified</span>
+    <strong>{clients.filter(c => c.status === 'QUALIFIED').length}</strong>
+  </div>
 
+  <div className="performance-card">
+    <span>Submitted</span>
+    <strong>{clients.filter(c => c.status === 'SUBMITTED').length}</strong>
+  </div>
+
+  <div className="performance-card">
+    <span>Approved</span>
+    <strong>{clients.filter(c => c.status === 'APPROVED').length}</strong>
+  </div>
+
+  <div className="performance-card">
+    <span>Completed</span>
+    <strong>{clients.filter(c => c.status === 'COMPLETED').length}</strong>
+  </div>
+</div>
         <section className="dashboard-premium-grid">
           <section className="card dashboard-panel premium-panel">
             <div className="table-header">
