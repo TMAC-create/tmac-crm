@@ -997,10 +997,12 @@ function deleteCreditor(id: string) {
 </div>
         <section className="dashboard-premium-grid">
           <section className="card dashboard-panel premium-panel">
-            <div className="table-header">
-              <h3>Status snapshot</h3>
-              <span>Pipeline overview</span>
-            </div>
+            <div className="table-header dashboard-section-header">
+  <div>
+    <h3>Status snapshot</h3>
+    <span>Current pipeline overview</span>
+  </div>
+</div>
 
             <div className="status-grid premium-status-grid">
               {statusCounts.map((item) => (
@@ -1013,10 +1015,12 @@ function deleteCreditor(id: string) {
           </section>
 
           <section className="card dashboard-panel premium-panel">
-            <div className="table-header">
-              <h3>Recent clients</h3>
-              <span>Latest additions</span>
-            </div>
+            <div className="table-header dashboard-section-header">
+  <div>
+    <h3>Recent clients</h3>
+    <span>Latest additions to the CRM</span>
+  </div>
+</div>
 
             <table>
               <thead>
