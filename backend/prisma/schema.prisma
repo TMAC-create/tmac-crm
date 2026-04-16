@@ -90,6 +90,7 @@ model Client {
   tasks          Task[]
   activities     Activity[]
   documents      Document[]
+  clientDocuments ClientDocument[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
@@ -158,3 +159,18 @@ model ApiEvent {
   responseJson Json?
   createdAt    DateTime   @default(now())
 }
+
+model ClientDocument {
+  id           String   @id @default(cuid())
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  section      String
+  originalName String
+  storedName   String
+  mimeType     String?
+  sizeBytes    Int?
+  filePath     String
+  autoTag      String?
+  createdAt    DateTime @default(now())
+}
+
