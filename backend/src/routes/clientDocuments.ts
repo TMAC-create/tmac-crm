@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Router } from 'express';
 import multer from 'multer';
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
