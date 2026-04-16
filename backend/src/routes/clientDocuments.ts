@@ -73,7 +73,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get('/clients/:id/documents', async (req, res) => {
+router.get('/:id/documents', async (req, res) => {
   const docs = await prisma.clientDocument.findMany({
     where: { clientId: req.params.id },
     orderBy: { createdAt: 'desc' },
@@ -82,52 +82,52 @@ router.get('/clients/:id/documents', async (req, res) => {
   res.json(docs);
 });
 
-router.post('/clients/:id/documents', upload.single('file'), async (req, res) => {
+router.post('/:id/documents', upload.single('file'), async (req, res) => {
   const file = req.file;
 
   if (!file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-const rawSection = req.body.section;
-const section =
-  typeof rawSection === 'string'
-    ? rawSection
-    : Array.isArray(rawSection) && typeof rawSection[0] === 'string'
-      ? rawSection[0]
-      : 'Other Documents';
-
-const autoTag = detectAutoTag(section, file.originalname);
+  const rawSection = req.body.section;
+  const section =
+    typeof rawSection === 'string'
+      ? rawSection
+      : Array.isArray(rawSection) && typeof rawSection[0] === 'string'
+        ? rawSection[0]
+        : 'Other Documents';
 
   const rawClientId = req.params.id;
-const clientId =
-  typeof rawClientId === 'string'
-    ? rawClientId
-    : Array.isArray(rawClientId) && typeof rawClientId[0] === 'string'
-      ? rawClientId[0]
-      : '';
+  const clientId =
+    typeof rawClientId === 'string'
+      ? rawClientId
+      : Array.isArray(rawClientId) && typeof rawClientId[0] === 'string'
+        ? rawClientId[0]
+        : '';
 
-if (!clientId) {
-  return res.status(400).json({ error: 'Invalid client id' });
-}
+  if (!clientId) {
+    return res.status(400).json({ error: 'Invalid client id' });
+  }
 
-const doc = await prisma.clientDocument.create({
-  data: {
-    clientId,
-    section: String(section),
-    originalName: file.originalname,
-    storedName: file.filename,
-    mimeType: file.mimetype,
-    sizeBytes: file.size,
-    filePath: file.path,
-    autoTag,
-  },
-});
+  const autoTag = detectAutoTag(section, file.originalname);
+
+  const doc = await prisma.clientDocument.create({
+    data: {
+      clientId,
+      section: String(section),
+      originalName: file.originalname,
+      storedName: file.filename,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      filePath: file.path,
+      autoTag,
+    },
+  });
 
   return res.status(201).json(doc);
 });
 
-router.get('/clients/:clientId/documents/:documentId/download', async (req, res) => {
+router.get('/:clientId/documents/:documentId/download', async (req, res) => {
   const doc = await prisma.clientDocument.findFirst({
     where: {
       id: req.params.documentId,
@@ -142,7 +142,7 @@ router.get('/clients/:clientId/documents/:documentId/download', async (req, res)
   return res.download(doc.filePath, doc.originalName);
 });
 
-router.delete('/clients/:clientId/documents/:documentId', async (req, res) => {
+router.delete('/:clientId/documents/:documentId', async (req, res) => {
   const doc = await prisma.clientDocument.findFirst({
     where: {
       id: req.params.documentId,
