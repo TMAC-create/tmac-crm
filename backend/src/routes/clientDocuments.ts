@@ -89,7 +89,9 @@ router.post('/clients/:id/documents', upload.single('file'), async (req, res) =>
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const section = String(req.body.section || 'Other Documents') as DocumentSection;
+  const rawSection = req.body.section;
+  const sectionValue = Array.isArray(rawSection) ? rawSection[0] : rawSection;
+  const section = (sectionValue || 'Other Documents') as DocumentSection;
   const autoTag = detectAutoTag(section, file.originalname);
 
   const doc = await prisma.clientDocument.create({
