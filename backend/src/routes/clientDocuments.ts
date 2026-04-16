@@ -99,18 +99,30 @@ const section =
 
 const autoTag = detectAutoTag(section, file.originalname);
 
-  const doc = await prisma.clientDocument.create({
-    data: {
-      clientId: req.params.id,
-      section: String(section),
-      originalName: file.originalname,
-      storedName: file.filename,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
-      filePath: file.path,
-      autoTag,
-    },
-  });
+  const rawClientId = req.params.id;
+const clientId =
+  typeof rawClientId === 'string'
+    ? rawClientId
+    : Array.isArray(rawClientId) && typeof rawClientId[0] === 'string'
+      ? rawClientId[0]
+      : '';
+
+if (!clientId) {
+  return res.status(400).json({ error: 'Invalid client id' });
+}
+
+const doc = await prisma.clientDocument.create({
+  data: {
+    clientId,
+    section: String(section),
+    originalName: file.originalname,
+    storedName: file.filename,
+    mimeType: file.mimetype,
+    sizeBytes: file.size,
+    filePath: file.path,
+    autoTag,
+  },
+});
 
   return res.status(201).json(doc);
 });
