@@ -6,6 +6,7 @@ import { env } from './lib/env.js';
 
 import { authRouter } from './routes/auth.js';
 import { clientsRouter } from './routes/clients.js';
+import clientDocumentsRouter from './routes/clientDocuments.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { healthRouter } from './routes/health.js';
 
@@ -19,6 +20,7 @@ app.use(morgan('dev'));
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/clients', clientsRouter);
+app.use('/clients', clientDocumentsRouter);
 app.use('/dashboard', dashboardRouter);
 
 app.get('/', (_req, res) => {
