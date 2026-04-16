@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { Router } from 'express';
-import multer from 'multer';
+import { Router, type Request } from 'express';
+import multer, { type FileFilterCallback } from 'multer';
 import { prisma } from '../lib/prisma.js';
 
 const router = Router();
@@ -11,6 +11,12 @@ const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+type DocumentSection =
+  | 'Proof of ID'
+  | 'Proof of Address'
+  | 'Proof of Income'
+  | 'Other Documents';
 
 function detectAutoTag(section: string, originalName: string) {
   const name = originalName.toLowerCase();
@@ -48,10 +54,18 @@ function detectAutoTag(section: string, originalName: string) {
 }
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void
+  ) => {
     cb(null, uploadDir);
   },
-  filename: (_req, file, cb) => {
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void
+  ) => {
     const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     cb(null, safeName);
   },
@@ -69,27 +83,29 @@ router.get('/clients/:id/documents', async (req, res) => {
 });
 
 router.post('/clients/:id/documents', upload.single('file'), async (req, res) => {
-  if (!req.file) {
+  const file = req.file;
+
+  if (!file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const section = String(req.body.section || 'Other Documents');
-  const autoTag = detectAutoTag(section, req.file.originalname);
+  const section = String(req.body.section || 'Other Documents') as DocumentSection;
+  const autoTag = detectAutoTag(section, file.originalname);
 
   const doc = await prisma.clientDocument.create({
     data: {
       clientId: req.params.id,
       section,
-      originalName: req.file.originalname,
-      storedName: req.file.filename,
-      mimeType: req.file.mimetype,
-      sizeBytes: req.file.size,
-      filePath: req.file.path,
+      originalName: file.originalname,
+      storedName: file.filename,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      filePath: file.path,
       autoTag,
     },
   });
 
-  res.status(201).json(doc);
+  return res.status(201).json(doc);
 });
 
 router.get('/clients/:clientId/documents/:documentId/download', async (req, res) => {
@@ -127,7 +143,7 @@ router.delete('/clients/:clientId/documents/:documentId', async (req, res) => {
     where: { id: doc.id },
   });
 
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 export default router;
