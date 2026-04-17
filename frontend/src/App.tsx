@@ -883,18 +883,15 @@ function editCreditor(item: CreditorMasterItem) {
 }
 
 function deleteCreditor(id: string) {
-async function loadClientDocuments(clientId: string) {
-  const response = await fetch(`${API_URL}/clients/${clientId}/documents`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  setCreditorMasterList((prev) => prev.filter((item) => item.id !== id));
 
-  if (!response.ok) return;
+  if (editingCreditorId === id) {
+    resetCreditorAdminForm();
+  }
 
-  const data = await response.json();
-  setClientDocuments(data);
+  setSuccess('Creditor removed successfully.');
 }
+
 async function loadClientDocuments(clientId: string) {
   const response = await fetch(`${API_URL}/clients/${clientId}/documents`, {
     headers: {
