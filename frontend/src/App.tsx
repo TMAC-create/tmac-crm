@@ -2782,8 +2782,9 @@ function renderPlaceholder(title: string) {
 {view === 'tasks' && renderPlaceholder('Tasks')}
 {view === 'reporting' && renderPlaceholder('Reporting')}
 {view === 'admin' && renderAdminTab()}
+</>
 )}
-     </main>
+</main>
 </div>
 );
 }
