@@ -883,7 +883,7 @@ function editCreditor(item: CreditorMasterItem) {
 }
 
 function deleteCreditor(id: string) {
-  async function loadClientDocuments(clientId: string) {
+async function loadClientDocuments(clientId: string) {
   const response = await fetch(`${API_URL}/clients/${clientId}/documents`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -924,6 +924,28 @@ async function uploadClientDocument(section: string, file: File) {
 
   await loadClientDocuments(selectedClientId);
   setSuccess('Document uploaded successfully.');
+}
+
+async function deleteClientDocument(documentId: string) {
+  if (!selectedClientId) return;
+
+  const response = await fetch(
+    `${API_URL}/clients/${selectedClientId}/documents/${documentId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    setError('Could not delete document.');
+    return;
+  }
+
+  await loadClientDocuments(selectedClientId);
+  setSuccess('Document deleted successfully.');
 }
 
 async function deleteClientDocument(documentId: string) {
