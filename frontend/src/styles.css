@@ -1730,3 +1730,123 @@ dd { margin: 0; font-weight: 600; }
 .dashboard-performance {
   padding: 8px 0;
 }
+/* DOCUMENTS GRID */
+.documents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+/* DOCUMENT CARD */
+.document-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: 0.2s ease;
+}
+
+.document-card:hover {
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+}
+
+/* HEADER */
+.document-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.document-card-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.document-card-header span {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* UPLOAD BOX */
+.document-upload {
+  border: 2px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.document-upload:hover {
+  border-color: #6366f1;
+  background: #f9fafb;
+}
+
+.document-upload input {
+  display: none;
+}
+
+.upload-placeholder span {
+  font-size: 13px;
+  display: block;
+}
+
+.upload-placeholder small {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* FILE LIST */
+.document-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* FILE ROW */
+.document-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #f1f5f9;
+}
+
+/* FILE META */
+.document-meta strong {
+  font-size: 13px;
+}
+
+.document-meta small {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* ACTIONS */
+.document-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* BUTTONS */
+.small-button {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.secondary {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.danger-button {
+  background: #fee2e2;
+  color: #dc2626;
+}
