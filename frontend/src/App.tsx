@@ -934,7 +934,7 @@ async function uploadClientDocument(section: string, file: File) {
   setSuccess('Document uploaded successfully.');
 }
 
-async function deleteClientDocuments(documentId: string) {
+async function deleteClientDocument(documentId: string) {
   if (!selectedClientId) return;
 
   const response = await fetch(
@@ -955,14 +955,7 @@ async function deleteClientDocuments(documentId: string) {
   await loadClientDocuments(selectedClientId);
   setSuccess('Document deleted successfully.');
 }
-  setCreditorMasterList((prev) => prev.filter((item) => item.id !== id));
 
-  if (editingCreditorId === id) {
-    resetCreditorAdminForm();
-  }
-
-  setSuccess('Creditor removed successfully.');
-}
   function formatDate(value: string) {
     return new Date(value).toLocaleDateString('en-GB');
   }
