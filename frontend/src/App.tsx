@@ -34,7 +34,18 @@ type LoanData = {
   includeSecuredLoans: 'yes' | 'no';
   notes: string;
 };
-
+type ClientDocumentItem = {
+  id: string;
+  clientId: string;
+  section: string;
+  originalName: string;
+  storedName: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  filePath: string;
+  autoTag?: string | null;
+  createdAt: string;
+};
 type ClientMetadata = {
   income?: Record<string, string>;
   expenditure?: Record<string, string>;
@@ -314,6 +325,8 @@ const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[
 });
 const [creditorAdminName, setCreditorAdminName] = useState('');
 const [editingCreditorId, setEditingCreditorId] = useState<string | null>(null);
+const [clientDocuments, setClientDocuments] = useState<ClientDocumentItem[]>([]);
+const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
