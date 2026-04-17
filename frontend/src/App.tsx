@@ -643,6 +643,7 @@ setCreditorSearch('');
     setSuccess('');
     setError('');
     await loadClientDetail(client.id);
+    await loadClientDocuments(client.id);
   }
 
   function closeClientRecord() {
