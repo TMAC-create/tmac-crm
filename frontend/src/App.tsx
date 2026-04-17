@@ -2732,7 +2732,6 @@ function renderPlaceholder(title: string) {
 {view === 'admin' && renderAdminTab()}
           </>
         )}
-      </main>
-    </div>
-  );
-}
+     </main>
+</div>
+);
