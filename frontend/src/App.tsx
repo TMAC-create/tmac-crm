@@ -2140,14 +2140,12 @@ function renderSummaryTab() {
                     <span>Balance £{money(debt.balance).toFixed(2)}</span>
                     <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
                   </div>
-                  <div className="debt-actions">
-                    <button
-  <div className="debt-actions">
+<div className="debt-actions">
   <button
     className="secondary small-button"
-    onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
+    onClick={() => editDebt(debt)}
   >
-    Download
+    Edit
   </button>
 
   <button
@@ -2492,7 +2490,7 @@ function renderDocumentsTab() {
                       <div className="document-actions">
   <button
     className="secondary small-button"
-    onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
+    
   >
     Download
   </button>
