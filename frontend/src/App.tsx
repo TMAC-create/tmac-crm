@@ -2142,18 +2142,21 @@ function renderSummaryTab() {
                   </div>
                   <div className="debt-actions">
                     <button
-  className="secondary small-button"
-  onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
->
-  Download
-</button>
-                    <button
-                      className="danger-button small-button"
-                      onClick={() => removeDebt(debt.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
+  <div className="debt-actions">
+  <button
+    className="secondary small-button"
+    onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
+  >
+    Download
+  </button>
+
+  <button
+    className="danger-button small-button"
+    onClick={() => removeDebt(debt.id)}
+  >
+    Remove
+  </button>
+</div>
                 </div>
               ))}
             </div>
