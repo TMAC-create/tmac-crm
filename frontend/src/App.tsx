@@ -946,7 +946,33 @@ async function deleteClientDocument(documentId: string) {
       },
     }
   );
+async function downloadClientDocument(documentId: string, originalName: string) {
+  if (!selectedClientId) return;
 
+  const response = await fetch(
+    `${API_URL}/clients/${selectedClientId}/documents/${documentId}/download`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    setError('Could not download document.');
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = originalName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
   if (!response.ok) {
     setError('Could not delete document.');
     return;
@@ -2112,9 +2138,12 @@ function renderSummaryTab() {
                     <span>Payment £{money(debt.monthlyPayment).toFixed(2)}</span>
                   </div>
                   <div className="debt-actions">
-                    <button className="secondary small-button" onClick={() => editDebt(debt)}>
-                      Edit
-                    </button>
+                    <button
+  className="secondary small-button"
+  onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
+>
+  Download
+</button>
                     <button
                       className="danger-button small-button"
                       onClick={() => removeDebt(debt.id)}
