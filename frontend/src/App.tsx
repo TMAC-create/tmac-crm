@@ -2405,33 +2405,85 @@ function renderSummaryTab() {
     </section>
   );
 }
-  function renderDocumentsTab() {
+function renderDocumentsTab() {
+  const sections = [
+    'Proof of ID',
+    'Proof of Address',
+    'Proof of Income',
+    'Other Documents',
+  ];
+
   return (
     <section className="card premium-panel tab-panel">
       <h3>Client Documents</h3>
 
       <div className="documents-grid">
-        {[
-          'Proof of ID',
-          'Proof of Address',
-          'Proof of Income',
-          'Other Documents',
-        ].map((section) => (
-          <div key={section} className="document-card">
-            <div className="document-card-header">
-              <h4>{section}</h4>
-            </div>
+        {sections.map((section) => {
+          const docs = clientDocuments.filter((doc) => doc.section === section);
 
-            <div className="document-upload">
-              <input type="file" />
+          return (
+            <div key={section} className="document-card">
+              <div className="document-card-header">
+                <h4>{section}</h4>
+                <span>{docs.length} files</span>
+              </div>
 
-              <div className="upload-placeholder">
-                <span>Drag & drop or upload file</span>
-                <small>PDF, JPG, PNG</small>
+              <label className="document-upload">
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      void uploadClientDocument(section, file);
+                    }
+                  }}
+                />
+                <div className="upload-placeholder">
+                  <span>
+                    {uploadingSection === section ? 'Uploading...' : 'Drag & drop or upload file'}
+                  </span>
+                  <small>PDF, JPG, PNG, DOC, DOCX supported</small>
+                </div>
+              </label>
+
+              <div className="document-list">
+                {docs.length === 0 ? (
+                  <p className="muted-text">No files uploaded yet.</p>
+                ) : (
+                  docs.map((doc) => (
+                    <div key={doc.id} className="document-list-item">
+                      <div className="document-meta">
+                        <strong>{doc.originalName}</strong>
+                        <small>
+                          {doc.autoTag ? `${doc.autoTag} · ` : ''}
+                          {doc.sizeBytes ? `${Math.round(doc.sizeBytes / 1024)} KB · ` : ''}
+                          {new Date(doc.createdAt).toLocaleDateString('en-GB')}
+                        </small>
+                      </div>
+
+                      <div className="document-actions">
+                        <a
+                          className="secondary small-button"
+                          href={`${API_URL}/clients/${selectedClientId}/documents/${doc.id}/download`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Download
+                        </a>
+                        <button
+                          className="danger-button small-button"
+                          onClick={() => void deleteClientDocument(doc.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -2735,3 +2787,4 @@ function renderPlaceholder(title: string) {
      </main>
 </div>
 );
+}
