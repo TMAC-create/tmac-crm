@@ -2493,6 +2493,7 @@ function renderDocumentsTab() {
   >
     Download
   </button>
+
   <button
     className="danger-button small-button"
     onClick={() => void deleteClientDocument(doc.id)}
