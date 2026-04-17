@@ -965,12 +965,15 @@ async function downloadClientDocument(documentId: string, originalName: string) 
 
   const blob = await response.blob();
   const url = window.URL.createObjectURL(blob);
+
   const link = document.createElement('a');
   link.href = url;
   link.download = originalName;
+
   document.body.appendChild(link);
   link.click();
   link.remove();
+
   window.URL.revokeObjectURL(url);
 }
   if (!response.ok) {
@@ -2484,21 +2487,19 @@ function renderDocumentsTab() {
                       </div>
 
                       <div className="document-actions">
-                        <a
-                          className="secondary small-button"
-                          href={`${API_URL}/clients/${selectedClientId}/documents/${doc.id}/download`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Download
-                        </a>
-                        <button
-                          className="danger-button small-button"
-                          onClick={() => void deleteClientDocument(doc.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
+  <button
+    className="secondary small-button"
+    onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
+  >
+    Download
+  </button>
+  <button
+    className="danger-button small-button"
+    onClick={() => void deleteClientDocument(doc.id)}
+  >
+    Delete
+  </button>
+</div>
                     </div>
                   ))
                 )}
