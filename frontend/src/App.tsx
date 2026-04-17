@@ -2702,7 +2702,6 @@ function renderNotesTab() {
       </section>
     </>
   );
- }
 
 function renderPlaceholder(title: string) {
   return (
