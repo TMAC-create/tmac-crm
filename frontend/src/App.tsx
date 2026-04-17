@@ -2787,4 +2787,3 @@ function renderPlaceholder(title: string) {
 </main>
 </div>
 );
-}
