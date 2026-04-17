@@ -2761,29 +2761,31 @@ function renderPlaceholder(title: string) {
       </aside>
 
       <main className="content">
-        {!isLoggedIn ? (
-          <section className="card login-card premium-panel">
-            <h2>Secure Login</h2>
-            <p>Sign in to TMAC CRM</p>
-            <label>Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} />
-            <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button className="primary" onClick={login}>Log in</button>
-            {error && <p className="error">{error}</p>}
-          </section>
-        ) : (
-          <>
-            {error && <p className="error inline-error">{error}</p>}
-            {success && <p className="success inline-success">{success}</p>}
+  {!isLoggedIn ? (
+    <section className="card login-card premium-panel">
+      <h2>Secure Login</h2>
+      <p>Sign in to TMAC CRM</p>
+      <label>Email</label>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} />
+      <label>Password</label>
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <button className="primary" onClick={login}>
+        Log in
+      </button>
+      {error && <p className="error">{error}</p>}
+    </section>
+  ) : (
+    <>
+      {error && <p className="error inline-error">{error}</p>}
+      {success && <p className="success inline-success">{success}</p>}
 
-           {view === 'dashboard' && renderDashboard()}
-{view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
-{view === 'tasks' && renderPlaceholder('Tasks')}
-{view === 'reporting' && renderPlaceholder('Reporting')}
-{view === 'admin' && renderAdminTab()}
-</>
-)}
+      {view === 'dashboard' && renderDashboard()}
+      {view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
+      {view === 'tasks' && renderPlaceholder('Tasks')}
+      {view === 'reporting' && renderPlaceholder('Reporting')}
+      {view === 'admin' && renderAdminTab()}
+    </>
+  )}
 </main>
 </div>
 );
