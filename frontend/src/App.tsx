@@ -895,7 +895,18 @@ async function loadClientDocuments(clientId: string) {
   const data = await response.json();
   setClientDocuments(data);
 }
+async function loadClientDocuments(clientId: string) {
+  const response = await fetch(`${API_URL}/clients/${clientId}/documents`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
+  if (!response.ok) return;
+
+  const data = await response.json();
+  setClientDocuments(data);
+}
 async function uploadClientDocument(section: string, file: File) {
   if (!selectedClientId) return;
 
@@ -926,29 +937,7 @@ async function uploadClientDocument(section: string, file: File) {
   setSuccess('Document uploaded successfully.');
 }
 
-async function deleteClientDocument(documentId: string) {
-  if (!selectedClientId) return;
-
-  const response = await fetch(
-    `${API_URL}/clients/${selectedClientId}/documents/${documentId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    setError('Could not delete document.');
-    return;
-  }
-
-  await loadClientDocuments(selectedClientId);
-  setSuccess('Document deleted successfully.');
-}
-
-async function deleteClientDocument(documentId: string) {
+async function deleteClientDocuments(documentId: string) {
   if (!selectedClientId) return;
 
   const response = await fetch(
