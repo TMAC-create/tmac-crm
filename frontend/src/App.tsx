@@ -882,6 +882,70 @@ function editCreditor(item: CreditorMasterItem) {
 }
 
 function deleteCreditor(id: string) {
+  async function loadClientDocuments(clientId: string) {
+  const response = await fetch(`${API_URL}/clients/${clientId}/documents`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) return;
+
+  const data = await response.json();
+  setClientDocuments(data);
+}
+
+async function uploadClientDocument(section: string, file: File) {
+  if (!selectedClientId) return;
+
+  setUploadingSection(section);
+  setError('');
+  setSuccess('');
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('section', section);
+
+  const response = await fetch(`${API_URL}/clients/${selectedClientId}/documents`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  setUploadingSection(null);
+
+  if (!response.ok) {
+    setError('Could not upload document.');
+    return;
+  }
+
+  await loadClientDocuments(selectedClientId);
+  setSuccess('Document uploaded successfully.');
+}
+
+async function deleteClientDocument(documentId: string) {
+  if (!selectedClientId) return;
+
+  const response = await fetch(
+    `${API_URL}/clients/${selectedClientId}/documents/${documentId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    setError('Could not delete document.');
+    return;
+  }
+
+  await loadClientDocuments(selectedClientId);
+  setSuccess('Document deleted successfully.');
+}
   setCreditorMasterList((prev) => prev.filter((item) => item.id !== id));
 
   if (editingCreditorId === id) {
