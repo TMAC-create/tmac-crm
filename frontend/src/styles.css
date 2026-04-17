@@ -1850,3 +1850,30 @@ dd { margin: 0; font-weight: 600; }
   background: #fee2e2;
   color: #dc2626;
 }
+.document-list-item {
+  align-items: flex-start;
+}
+
+.document-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.document-meta strong {
+  display: block;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.document-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  margin-left: 12px;
+}
+
+@media (max-width: 900px) {
+  .document-actions {
+    margin-left: 0;
+  }
+}
