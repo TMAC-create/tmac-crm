@@ -71,6 +71,8 @@ model Client {
   lastName       String
   email          String?
   mobile         String?
+  clientSalary String?
+  propertyValue String?
   dob            DateTime?
   addressLine1   String?
   addressLine2   String?
