@@ -129,8 +129,8 @@ clientsRouter.post('/', async (req, res) => {
       source: parsed.data.source || null,
       campaign: parsed.data.campaign || null,
       status: parsed.data.status || 'NEW_LEAD',
-      clientSalary: body.clientSalary,
-      propertyValue: body.propertyValue,
+      clientSalary: parsed.clientSalary,
+      propertyValue: parsed.propertyValue,
       metadataJson: parsed.data.metadataJson || {},
     },
   });
