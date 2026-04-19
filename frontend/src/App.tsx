@@ -622,10 +622,10 @@ function maxLoanAtLtv(targetLtv: number) {
     });
 
     setIncomeForm({
-      clientSalary: client.clientSalary || '',
-      ...emptyIncomeData,
-      ...(client.metadataJson?.income || {}),
-    });
+  ...emptyIncomeData,
+  ...(client.metadataJson?.income || {}),
+  clientSalary: client.clientSalary || '',
+});
 
     setExpenditureForm({
       ...emptyExpenditureData,
