@@ -106,34 +106,36 @@ clientsRouter.get('/:id', async (req, res) => {
 clientsRouter.post('/', async (req, res) => {
   const parsed = clientSchema.safeParse(req.body);
 
-  if (!parsed.success) {
-    return res.status(400).json({
-      message: 'Invalid client payload.',
-      issues: parsed.error.flatten(),
-    });
-  }
-
-  const client = await prisma.client.create({
-    data: {
-      title: parsed.data.title || null,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      email: parsed.data.email || null,
-      mobile: parsed.data.mobile || null,
-      dob: parsed.data.dob ? new Date(parsed.data.dob) : null,
-      addressLine1: parsed.data.addressLine1 || null,
-      addressLine2: parsed.data.addressLine2 || null,
-      city: parsed.data.city || null,
-      county: parsed.data.county || null,
-      postcode: parsed.data.postcode || null,
-      source: parsed.data.source || null,
-      campaign: parsed.data.campaign || null,
-      status: parsed.data.status || 'NEW_LEAD',
-      clientSalary: parsed.clientSalary,
-      propertyValue: parsed.propertyValue,
-      metadataJson: parsed.data.metadataJson || {},
-    },
+if (!parsed.success) {
+  return res.status(400).json({
+    message: 'Invalid client payload.',
+    issues: parsed.error.flatten(),
   });
+}
+
+const data = parsed.data;
+
+const client = await prisma.client.create({
+  data: {
+    title: data.title || null,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email || null,
+    mobile: data.mobile || null,
+    dob: data.dob ? new Date(data.dob) : null,
+    addressLine1: data.addressLine1 || null,
+    addressLine2: data.addressLine2 || null,
+    city: data.city || null,
+    county: data.county || null,
+    postcode: data.postcode || null,
+    source: data.source || null,
+    campaign: data.campaign || null,
+    status: data.status || 'NEW_LEAD',
+    clientSalary: data.clientSalary || null,
+    propertyValue: data.propertyValue || null,
+    metadataJson: data.metadataJson || {},
+  },
+});
 
   await prisma.activity.create({
     data: {
