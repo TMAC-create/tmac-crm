@@ -60,6 +60,8 @@ const clientSchema = z.object({
   source: z.string().optional(),
   campaign: z.string().optional(),
   status: statusEnum.optional(),
+  clientSalary: z.string().optional(),
+  propertyValue: z.string().optional(),
   metadataJson: metadataSchema,
 });
 
@@ -127,6 +129,8 @@ clientsRouter.post('/', async (req, res) => {
       source: parsed.data.source || null,
       campaign: parsed.data.campaign || null,
       status: parsed.data.status || 'NEW_LEAD',
+      clientSalary: body.clientSalary,
+      propertyValue: body.propertyValue,
       metadataJson: parsed.data.metadataJson || {},
     },
   });
