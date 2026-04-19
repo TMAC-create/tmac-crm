@@ -69,6 +69,8 @@ type Client = {
   status: string;
   source?: string | null;
   campaign?: string | null;
+  clientSalary?: string;
+  propertyValue?: string;
   createdAt: string;
   notes?: Note[];
   activities?: Activity[];
@@ -633,9 +635,9 @@ function maxLoanAtLtv(targetLtv: number) {
 setDebtForm(emptyDebtForm);
 setEditingDebtId(null);
 setLoanForm({
-  propertyValue: client.propertyValue || '',
   ...emptyLoanData,
   ...(client.metadataJson?.loan || {}),
+  propertyValue: client.propertyValue || "",
 });
 setCreditorSearch('');
   }
