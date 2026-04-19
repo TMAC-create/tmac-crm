@@ -64,7 +64,6 @@ model ApiPartner {
 }
 
 model Client {
-  reference Int @unique
   id             String       @id @default(cuid())
   externalId     String?
   title          String?
