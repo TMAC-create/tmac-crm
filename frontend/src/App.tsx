@@ -992,12 +992,15 @@ async function downloadClientDocument(documentId: string, originalName: string) 
 }
 
   function formatDate(value: string) {
-    return new Date(value).toLocaleDateString('en-GB');
-  }
+  return new Date(value).toLocaleDateString('en-GB');
+}
 
-  function formatDateTime(value: string) {
-    return new Date(value).toLocaleString('en-GB');
-  }
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
   function formatDob(value?: string | null) {
     if (!value) return 'Not set';
@@ -1156,7 +1159,12 @@ async function downloadClientDocument(documentId: string, originalName: string) 
                       <td><strong>{client.firstName} {client.lastName}</strong></td>
                       <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
                       <td>{client.email || '-'}</td>
-                      <td>{formatDate(client.createdAt)}</td>
+                      <td>
+  <div className="date-added-cell">
+    <span>{formatDate(client.createdAt)}</span>
+    <small>{formatTime(client.createdAt)}</small>
+  </div>
+</td>
                     </tr>
                   ))
                 )}
