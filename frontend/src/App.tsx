@@ -1463,6 +1463,7 @@ function formatDateTime(value: string) {
                 <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
                   <option value="NEW_LEAD">New Lead</option>
                   <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="CALL_BACK">Contact Attempted</option>
                   <option value="QUALIFIED">Qualified</option>
                   <option value="DOCS_REQUESTED">Docs Requested</option>
                   <option value="DOCS_RECEIVED">Docs Received</option>
