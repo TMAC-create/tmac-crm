@@ -1350,7 +1350,12 @@ function formatDateTime(value: string) {
   <td>{client.mobile || '-'}</td>
   <td>{client.source || '-'}</td>
   <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
-  <td>{formatDate(client.createdAt)}</td>
+  <td>
+  <div className="date-added-cell">
+    <span>{formatDate(client.createdAt)}</span>
+    <small>{formatTime(client.createdAt)}</small>
+  </div>
+</td>
 </tr>
                 ))
               )}
