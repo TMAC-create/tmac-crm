@@ -961,7 +961,6 @@ async function deleteClientDocument(documentId: string) {
   setSuccess('Document deleted successfully.');
 }
 
-
 async function downloadClientDocument(documentId: string, originalName: string) {
   if (!selectedClientId) return;
 
@@ -990,14 +989,6 @@ async function downloadClientDocument(documentId: string, originalName: string) 
   link.remove();
 
   window.URL.revokeObjectURL(url);
-}
-  if (!response.ok) {
-    setError('Could not delete document.');
-    return;
-  }
-
-  await loadClientDocuments(selectedClientId);
-  setSuccess('Document deleted successfully.');
 }
 
   function formatDate(value: string) {
