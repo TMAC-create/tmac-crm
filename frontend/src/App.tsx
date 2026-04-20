@@ -55,7 +55,7 @@ type ClientMetadata = {
 
 type Client = {
   id: string;
-  reference: number;
+  reference?: number | null;
   title?: string | null;
   firstName: string;
   lastName: string;
@@ -67,13 +67,15 @@ type Client = {
   city?: string | null;
   county?: string | null;
   postcode?: string | null;
-  status: string;
   source?: string | null;
   campaign?: string | null;
+  status: string;
+  clientSalary?: string | null;
+  propertyValue?: string | null;
+  metadataJson?: ClientMetadata | null;
   createdAt: string;
   notes?: Note[];
   activities?: Activity[];
-  metadataJson?: ClientMetadata | null;
 };
 
 type View = 'dashboard' | 'clients' | 'tasks' | 'reporting' | 'admin';
