@@ -939,6 +939,29 @@ async function uploadClientDocument(section: string, file: File) {
   setSuccess('Document uploaded successfully.');
 }
 
+async function deleteClientDocument(documentId: string) {
+  if (!selectedClientId) return;
+
+  const response = await fetch(
+    `${API_URL}/clients/${selectedClientId}/documents/${documentId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    setError('Could not delete document.');
+    return;
+  }
+
+  await loadClientDocuments(selectedClientId);
+  setSuccess('Document deleted successfully.');
+}
+
+
 async function downloadClientDocument(documentId: string, originalName: string) {
   if (!selectedClientId) return;
 
