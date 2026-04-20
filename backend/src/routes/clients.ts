@@ -114,9 +114,23 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
+const lastClientWithReference = await prisma.client.findFirst({
+  where: {
+    reference: {
+      not: undefined,
+    },
+  },
+  orderBy: {
+    reference: 'desc',
+  },
+});
 
+const nextReference = lastClientWithReference
+  ? lastClientWithReference.reference + 1
+  : 1000;
 const client = await prisma.client.create({
   data: {
+    reference: nextReference,
     title: data.title || null,
     firstName: data.firstName,
     lastName: data.lastName,
