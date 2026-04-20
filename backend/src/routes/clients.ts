@@ -114,20 +114,22 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
-const lastClientWithReference = await prisma.client.findFirst({
+const clientsWithReference = await prisma.client.findMany({
   where: {
     reference: {
-      not: undefined,
+      not: null,
     },
   },
   orderBy: {
     reference: 'desc',
   },
+  take: 1,
 });
 
-const nextReference = lastClientWithReference
-  ? lastClientWithReference.reference + 1
-  : 1000;
+const nextReference =
+  clientsWithReference.length > 0 && clientsWithReference[0].reference
+    ? clientsWithReference[0].reference + 1
+    : 1000;
 const client = await prisma.client.create({
   data: {
     reference: nextReference,
