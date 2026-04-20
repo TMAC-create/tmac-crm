@@ -991,7 +991,7 @@ async function downloadClientDocument(documentId: string, originalName: string) 
   window.URL.revokeObjectURL(url);
 }
 
-  function formatDate(value: string) {
+function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
 }
 
