@@ -974,7 +974,6 @@ async function downloadClientDocument(documentId: string, originalName: string) 
   const link = document.createElement('a');
   link.href = url;
   link.download = originalName;
-
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -2497,7 +2496,7 @@ function renderDocumentsTab() {
                       <div className="document-actions">
   <button
     className="secondary small-button"
-    
+    onClick={() => void downloadClientDocument(doc.id, doc.originalName)}
   >
     Download
   </button>
