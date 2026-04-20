@@ -55,6 +55,7 @@ type ClientMetadata = {
 
 type Client = {
   id: string;
+  reference: number;
   title?: string | null;
   firstName: string;
   lastName: string;
@@ -69,8 +70,6 @@ type Client = {
   status: string;
   source?: string | null;
   campaign?: string | null;
-  clientSalary?: string;
-  propertyValue?: string;
   createdAt: string;
   notes?: Note[];
   activities?: Activity[];
@@ -1307,29 +1306,31 @@ async function downloadClientDocument(documentId: string, originalName: string) 
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Postcode</th>
-                <th>Status</th>
-                <th>Date Added</th>
-              </tr>
+  <th>Ref</th>
+  <th>Name</th>
+  <th>Email</th>
+  <th>Mobile</th>
+  <th>Introducer</th>
+  <th>Status</th>
+  <th>Date Added</th>
+</tr>
             </thead>
             <tbody>
               {filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No clients found.</td>
+                  <td colSpan={7}>No clients found.</td>
                 </tr>
               ) : (
                 filteredClients.map((client) => (
                   <tr key={client.id} className="clickable-row" onClick={() => openClient(client)}>
-                    <td><strong>{client.title ? `${client.title} ` : ''}{client.firstName} {client.lastName}</strong></td>
-                    <td>{client.email || '-'}</td>
-                    <td>{client.mobile || '-'}</td>
-                    <td>{client.postcode || '-'}</td>
-                    <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
-                    <td>{formatDate(client.createdAt)}</td>
-                  </tr>
+  <td><strong>{client.reference}</strong></td>
+  <td><strong>{client.title ? `${client.title} ` : ''}{client.firstName} {client.lastName}</strong></td>
+  <td>{client.email || '-'}</td>
+  <td>{client.mobile || '-'}</td>
+  <td>{client.source || '-'}</td>
+  <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
+  <td>{formatDate(client.createdAt)}</td>
+</tr>
                 ))
               )}
             </tbody>
@@ -1347,7 +1348,7 @@ async function downloadClientDocument(documentId: string, originalName: string) 
         <div className="client-header premium-client-header">
           <div>
             <div className="client-title-row">
-              <h3>{selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h3>
+              <h3>{selectedClient.reference} — {selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h3>
               <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
             </div>
 
@@ -2602,7 +2603,7 @@ function renderNotesTab() {
         <header className="page-header premium-header">
           <div>
             <div className="eyebrow">Client Record</div>
-            <h2>{selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h2>
+            <h2>{selectedClient.reference} — {selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h2>
             <p>Full client workspace and case file.</p>
           </div>
           <div className="header-actions">
