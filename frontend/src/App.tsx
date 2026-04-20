@@ -939,18 +939,6 @@ async function uploadClientDocument(section: string, file: File) {
   setSuccess('Document uploaded successfully.');
 }
 
-async function deleteClientDocument(documentId: string) {
-  if (!selectedClientId) return;
-
-  const response = await fetch(
-    `${API_URL}/clients/${selectedClientId}/documents/${documentId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
 async function downloadClientDocument(documentId: string, originalName: string) {
   if (!selectedClientId) return;
 
