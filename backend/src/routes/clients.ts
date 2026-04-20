@@ -15,7 +15,7 @@ const statusEnum = z.enum([
   'SUBMITTED',
   'APPROVED',
   'COMPLETED',
-  'CLOSED',
+  'LOST',
 ]);
 
 const debtItemSchema = z.object({
