@@ -8,13 +8,14 @@ export const clientsRouter = Router();
 const statusEnum = z.enum([
   'NEW_LEAD',
   'CONTACT_ATTEMPTED',
+  'CALL_BACK',
   'QUALIFIED',
   'DOCS_REQUESTED',
   'DOCS_RECEIVED',
   'SUBMITTED',
   'APPROVED',
   'COMPLETED',
-  'LOST',
+  'CLOSED',
 ]);
 
 const debtItemSchema = z.object({
