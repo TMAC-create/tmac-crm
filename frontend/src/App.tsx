@@ -2734,27 +2734,34 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-actions">
-                  <button
-                    className="primary small-button"
-                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
-                  >
-                    Complete
-                  </button>
+  <button
+    className="primary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
+  >
+    Complete
+  </button>
 
-                  <button
-                    className="secondary small-button"
-                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
-                  >
-                    No answer
-                  </button>
+  <button
+    className="secondary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
+  >
+    No answer
+  </button>
 
-                  <button
-                    className="danger-button small-button"
-                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
-                  >
-                    Cancel
-                  </button>
-                </div>
+  <button
+    className="secondary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'RESCHEDULED')}
+  >
+    Rescheduled
+  </button>
+
+  <button
+    className="danger-button small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
+  >
+    Cancel
+  </button>
+</div>
               </div>
             ))}
           </div>
