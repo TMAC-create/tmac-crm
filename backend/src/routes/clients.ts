@@ -208,6 +208,28 @@ clientsRouter.patch('/:id', async (req, res) => {
   });
 
   if (parsed.data.status === 'CALL_BACK') {
+  const callbackDate = parsed.data.metadataJson?.callback?.date;
+  const callbackTime = parsed.data.metadataJson?.callback?.time;
+
+  const callbackDueAt = new Date();
+
+  if (callbackDate && callbackTime) {
+    callbackDueAt.setFullYear(
+      Number(callbackDate.slice(0, 4)),
+      Number(callbackDate.slice(5, 7)) - 1,
+      Number(callbackDate.slice(8, 10))
+    );
+    callbackDueAt.setHours(
+      Number(callbackTime.slice(0, 2)),
+      Number(callbackTime.slice(3, 5)),
+      0,
+      0
+    );
+  } else {
+    callbackDueAt.setDate(callbackDueAt.getDate() + 1);
+    callbackDueAt.setHours(10, 0, 0, 0);
+  }
+
   const existingOpenCallbackTasks = await prisma.task.findMany({
     where: {
       clientId: req.params.id,
@@ -218,50 +240,81 @@ clientsRouter.patch('/:id', async (req, res) => {
     },
   });
 
-  if (existingOpenCallbackTasks.length === 0) {
-    const callbackDate = parsed.data.metadataJson?.callback?.date;
-    const callbackTime = parsed.data.metadataJson?.callback?.time;
+  const callbackTask = existingOpenCallbackTasks.find(
+    (task) => task.title === 'Client callback booked'
+  );
 
-    const callbackDueAt = new Date();
+  const chaseDocsTask = existingOpenCallbackTasks.find(
+    (task) => task.title === 'Chase documents before callback'
+  );
 
-    if (callbackDate && callbackTime) {
-      callbackDueAt.setFullYear(
-        Number(callbackDate.slice(0, 4)),
-        Number(callbackDate.slice(5, 7)) - 1,
-        Number(callbackDate.slice(8, 10))
-      );
-      callbackDueAt.setHours(
-        Number(callbackTime.slice(0, 2)),
-        Number(callbackTime.slice(3, 5)),
-        0,
-        0
-      );
-    } else {
-      callbackDueAt.setDate(callbackDueAt.getDate() + 1);
-      callbackDueAt.setHours(10, 0, 0, 0);
-    }
+  if (callbackTask) {
+    await prisma.task.update({
+      where: { id: callbackTask.id },
+      data: {
+        dueAt: callbackDueAt,
+        description:
+          parsed.data.metadataJson?.callback?.notes ||
+          'Call client back at the scheduled appointment time.',
+        priority: 'HIGH',
+      },
+    });
+  } else {
+    await prisma.task.create({
+      data: {
+        clientId: req.params.id,
+        title: 'Client callback booked',
+        description:
+          parsed.data.metadataJson?.callback?.notes ||
+          'Call client back at the scheduled appointment time.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'HIGH',
+      },
+    });
+  }
 
-    await prisma.task.createMany({
-      data: [
-        {
-          clientId: req.params.id,
-          title: 'Client callback booked',
-          description:
-            parsed.data.metadataJson?.callback?.notes ||
-            'Call client back at the scheduled appointment time.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'HIGH',
-        },
-        {
-          clientId: req.params.id,
-          title: 'Chase documents before callback',
-          description: 'Check outstanding documents before the callback appointment.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'MEDIUM',
-        },
-      ],
+  if (chaseDocsTask) {
+    await prisma.task.update({
+      where: { id: chaseDocsTask.id },
+      data: {
+        dueAt: callbackDueAt,
+        description: 'Check outstanding documents before the callback appointment.',
+        priority: 'MEDIUM',
+      },
+    });
+  } else {
+    await prisma.task.create({
+      data: {
+        clientId: req.params.id,
+        title: 'Chase documents before callback',
+        description: 'Check outstanding documents before the callback appointment.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'MEDIUM',
+      },
+    });
+  }
+}
+  if (chaseDocsTask) {
+    await prisma.task.update({
+      where: { id: chaseDocsTask.id },
+      data: {
+        dueAt: callbackDueAt,
+        description: 'Check outstanding documents before the callback appointment.',
+        priority: 'MEDIUM',
+      },
+    });
+  } else {
+    await prisma.task.create({
+      data: {
+        clientId: req.params.id,
+        title: 'Chase documents before callback',
+        description: 'Check outstanding documents before the callback appointment.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'MEDIUM',
+      },
     });
   }
 }
