@@ -175,42 +175,41 @@ clientsRouter.patch('/:id', async (req, res) => {
     });
   }
 if (parsed.data.status === 'CALL_BACK') {
-  const existingOpenCallbackTasks = await prisma.task.findMany({
-    where: {
-      clientId: client.id,
-      status: 'OPEN',
-      title: {
-        in: ['Client callback booked', 'Chase documents before callback'],
-      },
+const existingOpenCallbackTasks = await prisma.task.findMany({
+  where: {
+    clientId: req.params.id,
+    status: 'OPEN',
+    title: {
+      in: ['Client callback booked', 'Chase documents before callback'],
     },
+  },
+});
+
+if (existingOpenCallbackTasks.length === 0) {
+  const callbackDueAt = new Date();
+  callbackDueAt.setDate(callbackDueAt.getDate() + 1);
+  callbackDueAt.setHours(10, 0, 0, 0);
+
+  await prisma.task.createMany({
+    data: [
+      {
+        clientId: req.params.id,
+        title: 'Client callback booked',
+        description: 'Call client back at the scheduled appointment time.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'HIGH',
+      },
+      {
+        clientId: req.params.id,
+        title: 'Chase documents before callback',
+        description: 'Check outstanding documents before the callback appointment.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'MEDIUM',
+      },
+    ],
   });
-
-  if (existingOpenCallbackTasks.length === 0) {
-    const callbackDueAt = new Date();
-    callbackDueAt.setDate(callbackDueAt.getDate() + 1);
-    callbackDueAt.setHours(10, 0, 0, 0);
-
-    await prisma.task.createMany({
-      data: [
-        {
-          clientId: client.id,
-          title: 'Client callback booked',
-          description: 'Call client back at the scheduled appointment time.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'HIGH',
-        },
-        {
-          clientId: client.id,
-          title: 'Chase documents before callback',
-          description: 'Check outstanding documents before the callback appointment.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'MEDIUM',
-        },
-      ],
-    });
-  }
 }
   const existing = await prisma.client.findUnique({
     where: { id: req.params.id },
