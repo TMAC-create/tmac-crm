@@ -154,15 +154,15 @@ const client = await prisma.client.create({
   },
 });
 
-  await prisma.activity.create({
+    await prisma.activity.create({
     data: {
-      clientId: client.id,
-      type: 'client_created',
-      description: `Client ${client.firstName} ${client.lastName} created.`,
+      clientId: updated.id,
+      type: 'client_updated',
+      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
     },
   });
 
-  res.status(201).json(client);
+  res.json(updated);
 });
 
 clientsRouter.patch('/:id', async (req, res) => {
