@@ -43,6 +43,13 @@ const metadataSchema = z
     expenditure: z.record(z.string(), z.any()).optional(),
     debts: z.array(debtItemSchema).optional(),
     loan: loanSchema.optional(),
+    callback: z
+      .object({
+        date: z.string().optional(),
+        time: z.string().optional(),
+        notes: z.string().optional(),
+      })
+      .optional(),
   })
   .optional();
 
