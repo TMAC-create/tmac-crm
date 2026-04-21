@@ -299,3 +299,4 @@ clientsRouter.delete('/:id', async (req, res) => {
 
   res.json({ message: 'Client deleted successfully.' });
 });
+}
