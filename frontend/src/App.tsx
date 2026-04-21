@@ -1359,21 +1359,22 @@ function formatDateTime(value: string) {
                 <input type="date" value={clientForm.dob} onChange={(e) => updateClientForm('dob', e.target.value)} />
               </div>
               <div>
-                <label>Status</label>
-                <select value={clientForm.status} onChange={(e) => updateClientForm('status', e.target.value)}>
-                  <option value="NEW_LEAD">New Lead</option>
-                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                  <option value="CALL_BACK">CALL BACK</option>
-                  <option value="QUALIFIED">Qualified</option>
-                  <option value="DOCS_REQUESTED">Docs Requested</option>
-                  <option value="DOCS_RECEIVED">Docs Received</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="LOST">Lost</option>
-                </select>
-              </div>
-              {editForm.status === 'CALL_BACK' && (
+  <label>Status</label>
+  <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
+    <option value="NEW_LEAD">New Lead</option>
+    <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+    <option value="CALL_BACK">Call Back</option>
+    <option value="QUALIFIED">Qualified</option>
+    <option value="DOCS_REQUESTED">Docs Requested</option>
+    <option value="DOCS_RECEIVED">Docs Received</option>
+    <option value="SUBMITTED">Submitted</option>
+    <option value="APPROVED">Approved</option>
+    <option value="COMPLETED">Completed</option>
+    <option value="LOST">Lost</option>
+  </select>
+</div>
+
+{editForm.status === 'CALL_BACK' && (
   <div className="callback-booking-panel full-width">
     <h4>Callback booking</h4>
 
