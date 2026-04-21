@@ -174,71 +174,68 @@ clientsRouter.patch('/:id', async (req, res) => {
       issues: parsed.error.flatten(),
     });
   }
-if (parsed.data.status === 'CALL_BACK') {
-const existingOpenCallbackTasks = await prisma.task.findMany({
-  where: {
-    clientId: req.params.id,
-    status: 'OPEN',
-    title: {
-      in: ['Client callback booked', 'Chase documents before callback'],
-    },
-  },
-});
-
-if (existingOpenCallbackTasks.length === 0) {
-  const callbackDueAt = new Date();
-  callbackDueAt.setDate(callbackDueAt.getDate() + 1);
-  callbackDueAt.setHours(10, 0, 0, 0);
-
-  await prisma.task.createMany({
-    data: [
-      {
-        clientId: req.params.id,
-        title: 'Client callback booked',
-        description: 'Call client back at the scheduled appointment time.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'HIGH',
-      },
-      {
-        clientId: req.params.id,
-        title: 'Chase documents before callback',
-        description: 'Check outstanding documents before the callback appointment.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'MEDIUM',
-      },
-    ],
-  });
-}
-  const existing = await prisma.client.findUnique({
-    where: { id: req.params.id },
-  });
-
-  if (!existing) {
-    return res.status(404).json({ message: 'Client not found.' });
-  }
 
   const updated = await prisma.client.update({
     where: { id: req.params.id },
     data: {
-      title: parsed.data.title || null,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      email: parsed.data.email || null,
-      mobile: parsed.data.mobile || null,
-      dob: parsed.data.dob ? new Date(parsed.data.dob) : null,
-      addressLine1: parsed.data.addressLine1 || null,
-      addressLine2: parsed.data.addressLine2 || null,
-      city: parsed.data.city || null,
-      county: parsed.data.county || null,
-      postcode: parsed.data.postcode || null,
-      source: parsed.data.source || null,
-      campaign: parsed.data.campaign || null,
-      status: parsed.data.status || 'NEW_LEAD',
-      metadataJson: parsed.data.metadataJson || {},
+      title: parsed.data.title ?? undefined,
+      firstName: parsed.data.firstName ?? undefined,
+      lastName: parsed.data.lastName ?? undefined,
+      email: parsed.data.email ?? undefined,
+      mobile: parsed.data.mobile ?? undefined,
+      dob: parsed.data.dob ? new Date(parsed.data.dob) : undefined,
+      addressLine1: parsed.data.addressLine1 ?? undefined,
+      addressLine2: parsed.data.addressLine2 ?? undefined,
+      city: parsed.data.city ?? undefined,
+      county: parsed.data.county ?? undefined,
+      postcode: parsed.data.postcode ?? undefined,
+      source: parsed.data.source ?? undefined,
+      campaign: parsed.data.campaign ?? undefined,
+      status: parsed.data.status ?? undefined,
+      clientSalary: parsed.data.clientSalary ?? undefined,
+      propertyValue: parsed.data.propertyValue ?? undefined,
+      metadataJson: parsed.data.metadataJson ?? undefined,
     },
   });
+
+  if (parsed.data.status === 'CALL_BACK') {
+    const existingOpenCallbackTasks = await prisma.task.findMany({
+      where: {
+        clientId: req.params.id,
+        status: 'OPEN',
+        title: {
+          in: ['Client callback booked', 'Chase documents before callback'],
+        },
+      },
+    });
+
+    if (existingOpenCallbackTasks.length === 0) {
+      const callbackDueAt = new Date();
+      callbackDueAt.setDate(callbackDueAt.getDate() + 1);
+      callbackDueAt.setHours(10, 0, 0, 0);
+
+      await prisma.task.createMany({
+        data: [
+          {
+            clientId: req.params.id,
+            title: 'Client callback booked',
+            description: 'Call client back at the scheduled appointment time.',
+            dueAt: callbackDueAt,
+            status: 'OPEN',
+            priority: 'HIGH',
+          },
+          {
+            clientId: req.params.id,
+            title: 'Chase documents before callback',
+            description: 'Check outstanding documents before the callback appointment.',
+            dueAt: callbackDueAt,
+            status: 'OPEN',
+            priority: 'MEDIUM',
+          },
+        ],
+      });
+    }
+  }
 
   await prisma.activity.create({
     data: {
