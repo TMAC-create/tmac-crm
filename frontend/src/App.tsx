@@ -59,9 +59,10 @@ type ClientDocumentItem = {
   createdAt: string;
 };
 type ClientMetadata = {
-  income?: Record<string, string>;
-  expenditure?: Record<string, string>;
+  income?: Record<string, unknown>;
+  expenditure?: Record<string, unknown>;
   debts?: DebtItem[];
+  loan?: LoanData;
   callback?: {
     date?: string;
     time?: string;
