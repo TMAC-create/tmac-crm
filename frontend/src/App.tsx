@@ -12,7 +12,19 @@ type Activity = {
   description: string;
   createdAt: string;
 };
-
+type TaskItem = {
+  id: string;
+  clientId?: string | null;
+  assignedUserId?: string | null;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'OPEN' | 'DONE';
+  outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
+  createdAt: string;
+  updatedAt: string;
+};
 type DebtItem = {
   id: string;
   creditorName: string;
@@ -329,6 +341,7 @@ const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[
 const [creditorAdminName, setCreditorAdminName] = useState('');
 const [editingCreditorId, setEditingCreditorId] = useState<string | null>(null);
 const [clientDocuments, setClientDocuments] = useState<ClientDocumentItem[]>([]);
+const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
 const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
 
@@ -649,6 +662,7 @@ setCreditorSearch('');
     setError('');
     await loadClientDetail(client.id);
     await loadClientDocuments(client.id);
+    await loadClientTasks(client.id);
   }
 
   function closeClientRecord() {
@@ -990,7 +1004,72 @@ async function downloadClientDocument(documentId: string, originalName: string) 
 
   window.URL.revokeObjectURL(url);
 }
+async function loadClientTasks(clientId: string) {
+  const response = await fetch(`${API_URL}/tasks/client/${clientId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
+  if (!response.ok) return;
+
+  const data = await response.json();
+  setClientTasks(data);
+}
+
+async function updateClientTaskStatus(
+  taskId: string,
+  status: 'OPEN' | 'DONE',
+  outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED'
+) {
+  const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status, outcome }),
+  });
+
+  if (!response.ok) {
+    setError('Could not update task.');
+    return;
+  }
+
+  if (selectedClientId) {
+    await loadClientTasks(selectedClientId);
+  }
+}
+
+async function createClientTask(
+  title: string,
+  description: string,
+  dueAt?: string
+) {
+  if (!selectedClientId) return;
+
+  const response = await fetch(`${API_URL}/tasks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      clientId: selectedClientId,
+      title,
+      description,
+      dueAt: dueAt || null,
+    }),
+  });
+
+  if (!response.ok) {
+    setError('Could not create task.');
+    return;
+  }
+
+  await loadClientTasks(selectedClientId);
+  setSuccess('Task created successfully.');
+}
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
 }
@@ -2546,6 +2625,113 @@ function renderDocumentsTab() {
     </section>
   );
 }
+function renderTasksTab() {
+  if (!selectedClient) return null;
+
+  const openTasks = clientTasks.filter((task) => task.status === 'OPEN');
+  const doneTasks = clientTasks.filter((task) => task.status === 'DONE');
+
+  return (
+    <section className="card premium-panel tab-panel">
+      <div className="table-header">
+        <h3>Tasks</h3>
+        <span>{clientTasks.length} total</span>
+      </div>
+
+      <div className="form-actions" style={{ marginBottom: '16px' }}>
+        <button
+          className="secondary"
+          onClick={() =>
+            void createClientTask(
+              'Manual follow-up',
+              'Follow up with client.',
+              undefined
+            )
+          }
+        >
+          Add quick task
+        </button>
+      </div>
+
+      <div className="tasks-section">
+        <h4>Open tasks</h4>
+        {openTasks.length === 0 ? (
+          <p className="muted-text">No open tasks.</p>
+        ) : (
+          <div className="task-list">
+            {openTasks.map((task) => (
+              <div key={task.id} className="task-card">
+                <div className="task-card-top">
+                  <div>
+                    <strong>{task.title}</strong>
+                    <p>{task.description || 'No description'}</p>
+                  </div>
+                  <span className={`pill priority-${task.priority.toLowerCase()}`}>
+                    {task.priority}
+                  </span>
+                </div>
+
+                <div className="task-meta">
+                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
+                </div>
+
+                <div className="task-actions">
+                  <button
+                    className="primary small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
+                  >
+                    Complete
+                  </button>
+
+                  <button
+                    className="secondary small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
+                  >
+                    No answer
+                  </button>
+
+                  <button
+                    className="danger-button small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="tasks-section" style={{ marginTop: '24px' }}>
+        <h4>Completed tasks</h4>
+        {doneTasks.length === 0 ? (
+          <p className="muted-text">No completed tasks yet.</p>
+        ) : (
+          <div className="task-list">
+            {doneTasks.map((task) => (
+              <div key={task.id} className="task-card done">
+                <div className="task-card-top">
+                  <div>
+                    <strong>{task.title}</strong>
+                    <p>{task.description || 'No description'}</p>
+                  </div>
+                  <span className="pill">
+                    {task.outcome ? task.outcome.replaceAll('_', ' ') : 'DONE'}
+                  </span>
+                </div>
+
+                <div className="task-meta">
+                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 function renderNotesTab() {
   if (!selectedClient) return null;
 
@@ -2654,6 +2840,7 @@ function renderNotesTab() {
               ['debts', 'Debts / Creditors'],
               ['loan', 'Loan'],
               ['documents', 'Documents'],
+              ['tasks', 'Tasks']
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -2675,6 +2862,7 @@ function renderNotesTab() {
             {clientTab === 'debts' && renderDebtsTab()}
             {clientTab === 'loan' && renderLoanTab()}
             {clientTab === 'documents' && renderDocumentsTab()}
+            {clientTab === 'tasks' && rendertasksTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
