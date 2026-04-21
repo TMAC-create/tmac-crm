@@ -99,6 +99,7 @@ type ClientTab =
   | 'debts'
   | 'loan'
   | 'documents'
+  | 'tasks'
   | 'notes'
   | 'activity';
 
@@ -2840,7 +2841,7 @@ function renderNotesTab() {
               ['debts', 'Debts / Creditors'],
               ['loan', 'Loan'],
               ['documents', 'Documents'],
-              ['tasks', 'Tasks']
+              ['tasks', 'Tasks'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -2862,7 +2863,7 @@ function renderNotesTab() {
             {clientTab === 'debts' && renderDebtsTab()}
             {clientTab === 'loan' && renderLoanTab()}
             {clientTab === 'documents' && renderDocumentsTab()}
-            {clientTab === 'tasks' && rendertasksTab()}
+            {clientTab === 'tasks' && renderTasksTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
