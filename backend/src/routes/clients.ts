@@ -296,40 +296,17 @@ clientsRouter.patch('/:id', async (req, res) => {
     });
   }
 }
-  if (chaseDocsTask) {
-    await prisma.task.update({
-      where: { id: chaseDocsTask.id },
-      data: {
-        dueAt: callbackDueAt,
-        description: 'Check outstanding documents before the callback appointment.',
-        priority: 'MEDIUM',
-      },
-    });
-  } else {
-    await prisma.task.create({
-      data: {
-        clientId: req.params.id,
-        title: 'Chase documents before callback',
-        description: 'Check outstanding documents before the callback appointment.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'MEDIUM',
-      },
-    });
-  }
-}
 
-  await prisma.activity.create({
-    data: {
-      clientId: updated.id,
-      type: 'client_updated',
-      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
-    },
-  });
-
-  res.json(updated);
+await prisma.activity.create({
+  data: {
+    clientId: updated.id,
+    type: 'client_updated',
+    description: `Client ${updated.firstName} ${updated.lastName} updated.`,
+  },
 });
 
+res.json(updated);
+});
 clientsRouter.post('/:id/notes', async (req, res) => {
   const parsed = noteSchema.safeParse(req.body);
 
