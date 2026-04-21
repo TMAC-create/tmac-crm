@@ -66,7 +66,7 @@ const clientSchema = z.object({
   metadataJson: metadataSchema,
 });
 
-const updateClientSchema = clientSchema;
+const updateClientSchema = clientSchema.partial();
 
 const noteSchema = z.object({
   body: z.string().min(1),
@@ -107,62 +107,65 @@ clientsRouter.get('/:id', async (req, res) => {
 clientsRouter.post('/', async (req, res) => {
   const parsed = clientSchema.safeParse(req.body);
 
-if (!parsed.success) {
-  return res.status(400).json({
-    message: 'Invalid client payload.',
-    issues: parsed.error.flatten(),
-  });
-}
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Invalid client payload.',
+      issues: parsed.error.flatten(),
+    });
+  }
 
-const data = parsed.data;
-const clientsWithReference = await prisma.client.findMany({
-  where: {
-    reference: {
-      not: null,
+  const data = parsed.data;
+
+  const clientsWithReference = await prisma.client.findMany({
+    where: {
+      reference: {
+        not: null,
+      },
     },
-  },
-  orderBy: {
-    reference: 'desc',
-  },
-  take: 1,
-});
+    orderBy: {
+      reference: 'desc',
+    },
+    take: 1,
+  });
 
-const nextReference =
-  clientsWithReference.length > 0 && clientsWithReference[0].reference
-    ? clientsWithReference[0].reference + 1
-    : 1000;
-const client = await prisma.client.create({
-  data: {
-    reference: nextReference,
-    title: data.title || null,
-    firstName: data.firstName,
-    lastName: data.lastName,
-    email: data.email || null,
-    mobile: data.mobile || null,
-    dob: data.dob ? new Date(data.dob) : null,
-    addressLine1: data.addressLine1 || null,
-    addressLine2: data.addressLine2 || null,
-    city: data.city || null,
-    county: data.county || null,
-    postcode: data.postcode || null,
-    source: data.source || null,
-    campaign: data.campaign || null,
-    status: data.status || 'NEW_LEAD',
-    clientSalary: data.clientSalary || null,
-    propertyValue: data.propertyValue || null,
-    metadataJson: data.metadataJson || {},
-  },
-});
+  const nextReference =
+    clientsWithReference.length > 0 && clientsWithReference[0].reference
+      ? clientsWithReference[0].reference + 1
+      : 1000;
 
-    await prisma.activity.create({
-  data: {
-    clientId: client.id,
-    type: 'client_updated',
-    description: `Client ${client.firstName} ${client.lastName} updated.`,
-  },
-});
+  const client = await prisma.client.create({
+    data: {
+      reference: nextReference,
+      title: data.title || null,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email || null,
+      mobile: data.mobile || null,
+      dob: data.dob ? new Date(data.dob) : null,
+      addressLine1: data.addressLine1 || null,
+      addressLine2: data.addressLine2 || null,
+      city: data.city || null,
+      county: data.county || null,
+      postcode: data.postcode || null,
+      source: data.source || null,
+      campaign: data.campaign || null,
+      status: data.status || 'NEW_LEAD',
+      clientSalary: data.clientSalary || null,
+      propertyValue: data.propertyValue || null,
+      metadataJson: data.metadataJson || {},
+    },
+  });
 
-res.json(client);
+  await prisma.activity.create({
+    data: {
+      clientId: client.id,
+      type: 'client_created',
+      description: `Client ${client.firstName} ${client.lastName} created.`,
+    },
+  });
+
+  res.status(201).json(client);
+});
 
 clientsRouter.patch('/:id', async (req, res) => {
   const parsed = updateClientSchema.safeParse(req.body);
@@ -299,4 +302,3 @@ clientsRouter.delete('/:id', async (req, res) => {
 
   res.json({ message: 'Client deleted successfully.' });
 });
-}
