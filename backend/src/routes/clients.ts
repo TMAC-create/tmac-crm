@@ -155,15 +155,14 @@ const client = await prisma.client.create({
 });
 
     await prisma.activity.create({
-    data: {
-      clientId: updated.id,
-      type: 'client_updated',
-      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
-    },
-  });
-
-  res.json(updated);
+  data: {
+    clientId: client.id,
+    type: 'client_updated',
+    description: `Client ${client.firstName} ${client.lastName} updated.`,
+  },
 });
+
+res.json(client);
 
 clientsRouter.patch('/:id', async (req, res) => {
   const parsed = updateClientSchema.safeParse(req.body);
