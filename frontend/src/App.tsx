@@ -648,14 +648,14 @@ function maxLoanAtLtv(targetLtv: number) {
 
     setIncomeForm({
   ...emptyIncomeData,
-  ...(client.metadataJson?.income || {}),
+  ...((client.metadataJson?.income || {}) as Record<string, string>),
   clientSalary: client.clientSalary || '',
 });
 
     setExpenditureForm({
-      ...emptyExpenditureData,
-      ...(client.metadataJson?.expenditure || {}),
-    });
+  ...emptyExpenditureData,
+  ...((client.metadataJson?.expenditure || {}) as Record<string, string>),
+});
     setDebts(client.metadataJson?.debts || []);
 setDebtForm(emptyDebtForm);
 setEditingDebtId(null);
