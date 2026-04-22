@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import {
+  deleteOutlookCallbackEvents,
+  londonPartsFromDate,
+  upsertOutlookCallbackEvents,
+} from '../services/outlook.js';
 
 export const clientsRouter = Router();
 
@@ -37,19 +42,27 @@ const loanSchema = z.object({
   notes: z.string().optional().or(z.literal('')),
 });
 
+const callbackSchema = z
+  .object({
+    date: z.string().optional(),
+    time: z.string().optional(),
+    notes: z.string().optional(),
+    outlookEventIds: z
+      .object({
+        mike: z.string().optional(),
+        steven: z.string().optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
 const metadataSchema = z
   .object({
     income: z.record(z.string(), z.any()).optional(),
     expenditure: z.record(z.string(), z.any()).optional(),
     debts: z.array(debtItemSchema).optional(),
     loan: loanSchema.optional(),
-    callback: z
-      .object({
-        date: z.string().optional(),
-        time: z.string().optional(),
-        notes: z.string().optional(),
-      })
-      .optional(),
+    callback: callbackSchema,
   })
   .optional();
 
@@ -79,45 +92,91 @@ const noteSchema = z.object({
   body: z.string().min(1),
 });
 
-function lastSundayOfMonthUtc(year: number, monthIndex: number): Date {
+type CallbackMeta = {
+  date?: string;
+  time?: string;
+  notes?: string;
+  outlookEventIds?: {
+    mike?: string;
+    steven?: string;
+  };
+};
+
+function lastSunday(year: number, monthIndex: number): number {
   const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
-  const dayOfWeek = lastDay.getUTCDay();
-  return new Date(Date.UTC(year, monthIndex, lastDay.getUTCDate() - dayOfWeek));
+  return lastDay.getUTCDate() - lastDay.getUTCDay();
 }
 
-function isLondonDst(datePart: string, timePart: string): boolean {
+function isLondonDstLocal(datePart: string, timePart: string): boolean {
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(5, 7));
+  const day = Number(datePart.slice(8, 10));
+  const hour = Number(timePart.slice(0, 2));
+
+  if (month < 3 || month > 10) return false;
+  if (month > 3 && month < 10) return true;
+
+  const marchSwitchDay = lastSunday(year, 2);
+  const octoberSwitchDay = lastSunday(year, 9);
+
+  if (month === 3) {
+    if (day > marchSwitchDay) return true;
+    if (day < marchSwitchDay) return false;
+    return hour >= 2;
+  }
+
+  if (month === 10) {
+    if (day < octoberSwitchDay) return true;
+    if (day > octoberSwitchDay) return false;
+    return hour < 2;
+  }
+
+  return false;
+}
+
+function londonLocalToUtcDate(datePart?: string, timePart?: string): Date {
+  const fallback = new Date();
+  fallback.setDate(fallback.getDate() + 1);
+  fallback.setHours(10, 0, 0, 0);
+
+  if (!datePart || !timePart) return fallback;
+
   const year = Number(datePart.slice(0, 4));
   const month = Number(datePart.slice(5, 7));
   const day = Number(datePart.slice(8, 10));
   const hour = Number(timePart.slice(0, 2));
   const minute = Number(timePart.slice(3, 5));
 
-  const start = lastSundayOfMonthUtc(year, 2); // March
-  const end = lastSundayOfMonthUtc(year, 9);   // October
-
-  const currentNumeric = month * 1000000 + day * 10000 + hour * 100 + minute;
-  const startNumeric = 3 * 1000000 + start.getUTCDate() * 10000 + 100;
-  const endNumeric = 10 * 1000000 + end.getUTCDate() * 10000 + 200;
-
-  return currentNumeric >= startNumeric && currentNumeric < endNumeric;
-}
-
-function buildLondonCallbackDueAt(datePart?: string, timePart?: string): Date {
-  if (datePart && timePart) {
-    const year = Number(datePart.slice(0, 4));
-    const monthIndex = Number(datePart.slice(5, 7)) - 1;
-    const day = Number(datePart.slice(8, 10));
-    const hour = Number(timePart.slice(0, 2));
-    const minute = Number(timePart.slice(3, 5));
-
-    const offsetHours = isLondonDst(datePart, timePart) ? 1 : 0;
-    return new Date(Date.UTC(year, monthIndex, day, hour - offsetHours, minute, 0, 0));
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return fallback;
   }
 
-  const fallback = new Date();
-  fallback.setUTCDate(fallback.getUTCDate() + 1);
-  fallback.setUTCHours(10, 0, 0, 0);
-  return fallback;
+  const dst = isLondonDstLocal(datePart, timePart);
+  const utcHour = hour - (dst ? 1 : 0);
+
+  return new Date(Date.UTC(year, month - 1, day, utcHour, minute, 0, 0));
+}
+
+function buildCallbackMeta(
+  baseMetadata: any,
+  incomingCallback: CallbackMeta | undefined,
+  eventIds?: { mike?: string; steven?: string } | null,
+): any {
+  const existingCallback = (baseMetadata?.callback ?? {}) as Record<string, unknown>;
+  return {
+    ...(baseMetadata ?? {}),
+    callback: {
+      ...existingCallback,
+      ...(incomingCallback ?? {}),
+      ...(eventIds !== undefined ? { outlookEventIds: eventIds ?? {} } : {}),
+    },
+  };
 }
 
 clientsRouter.use(requireAuth);
@@ -225,7 +284,18 @@ clientsRouter.patch('/:id', async (req, res) => {
     });
   }
 
-  const updated = await prisma.client.update({
+  const existingClient = await prisma.client.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!existingClient) {
+    return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const existingMetadata = (existingClient.metadataJson ?? {}) as any;
+  const incomingCallback = parsed.data.metadataJson?.callback as CallbackMeta | undefined;
+
+  let updated = await prisma.client.update({
     where: { id: req.params.id },
     data: {
       title: parsed.data.title ?? undefined,
@@ -248,11 +318,13 @@ clientsRouter.patch('/:id', async (req, res) => {
     },
   });
 
+  const effectiveCallback = (updated.metadataJson as any)?.callback as CallbackMeta | undefined;
+  const callbackDate = effectiveCallback?.date;
+  const callbackTime = effectiveCallback?.time;
+  const callbackNotes = effectiveCallback?.notes;
+
   if (parsed.data.status === 'CALL_BACK') {
-    const callbackDate = parsed.data.metadataJson?.callback?.date;
-    const callbackTime = parsed.data.metadataJson?.callback?.time;
-    const callbackNotes = parsed.data.metadataJson?.callback?.notes;
-    const callbackDueAt = buildLondonCallbackDueAt(callbackDate, callbackTime);
+    const callbackDueAt = londonLocalToUtcDate(callbackDate, callbackTime);
 
     const existingOpenCallbackTasks = await prisma.task.findMany({
       where: {
@@ -265,11 +337,11 @@ clientsRouter.patch('/:id', async (req, res) => {
     });
 
     const callbackTask = existingOpenCallbackTasks.find(
-      (task) => task.title === 'Client callback booked'
+      (task) => task.title === 'Client callback booked',
     );
 
     const chaseDocsTask = existingOpenCallbackTasks.find(
-      (task) => task.title === 'Chase documents before callback'
+      (task) => task.title === 'Chase documents before callback',
     );
 
     if (callbackTask) {
@@ -277,8 +349,7 @@ clientsRouter.patch('/:id', async (req, res) => {
         where: { id: callbackTask.id },
         data: {
           dueAt: callbackDueAt,
-          description:
-            callbackNotes || 'Call client back at the scheduled appointment time.',
+          description: callbackNotes || 'Call client back at the scheduled appointment time.',
           priority: 'HIGH',
           status: 'OPEN',
           outcome: null,
@@ -289,8 +360,7 @@ clientsRouter.patch('/:id', async (req, res) => {
         data: {
           clientId: req.params.id,
           title: 'Client callback booked',
-          description:
-            callbackNotes || 'Call client back at the scheduled appointment time.',
+          description: callbackNotes || 'Call client back at the scheduled appointment time.',
           dueAt: callbackDueAt,
           status: 'OPEN',
           priority: 'HIGH',
@@ -321,6 +391,38 @@ clientsRouter.patch('/:id', async (req, res) => {
         },
       });
     }
+
+    const eventIds = await upsertOutlookCallbackEvents({
+      client: updated,
+      callbackDate: callbackDate,
+      callbackTime: callbackTime,
+      notes: callbackNotes,
+      existingEventIds: effectiveCallback?.outlookEventIds ?? existingMetadata?.callback?.outlookEventIds,
+    });
+
+    const mergedMetadata = buildCallbackMeta(updated.metadataJson, incomingCallback, eventIds);
+
+    updated = await prisma.client.update({
+      where: { id: req.params.id },
+      data: {
+        metadataJson: mergedMetadata,
+      },
+    });
+  } else if (existingMetadata?.callback?.outlookEventIds) {
+    await deleteOutlookCallbackEvents(existingMetadata.callback.outlookEventIds);
+
+    const mergedMetadata = buildCallbackMeta(
+      updated.metadataJson,
+      incomingCallback,
+      {},
+    );
+
+    updated = await prisma.client.update({
+      where: { id: req.params.id },
+      data: {
+        metadataJson: mergedMetadata,
+      },
+    });
   }
 
   await prisma.activity.create({
@@ -378,6 +480,11 @@ clientsRouter.delete('/:id', async (req, res) => {
 
   if (!existing) {
     return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const metadata = (existing.metadataJson ?? {}) as any;
+  if (metadata?.callback?.outlookEventIds) {
+    await deleteOutlookCallbackEvents(metadata.callback.outlookEventIds);
   }
 
   await prisma.client.delete({
