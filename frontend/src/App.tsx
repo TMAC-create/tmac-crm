@@ -680,31 +680,40 @@ setCreditorSearch('');
   }
 
   async function openClient(client: Client) {
-    setShowAddClient(false);
-    setSuccess('');
-    setError('');
-    await loadClientDetail(client.id);
-    await loadClientDocuments(client.id);
-    await loadClientTasks(client.id);
-  }
+      async function saveClientChanges() {
+    if (!selectedClientId) return;
 
-  function closeClientRecord() {
-    setSelectedClientId(null);
-    setSelectedClient(null);
-    setClientTab('overview');
-    setNewNote('');
-    setSuccess('');
-    setError('');
-  }
-
-  async function createClient() {
     setError('');
     setSuccess('');
 
-    const response = await fetch(`${API_URL}/clients`, {
-      method: 'POST',
+    const response = await fetch(`${API_URL}/clients/${selectedClientId}`, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        ...editForm,
+        metadataJson: {
+          income: incomeForm,
+          expenditure: expenditureForm,
+          debts,
+          loan: loanForm,
+          callback: callbackForm,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      setError('Could not update client.');
+      return;
+    }
+
+    await loadClients();
+    await loadClientDetail(selectedClientId);
+    await loadClientTasks(selectedClientId);
+    setSuccess('Client updated successfully.');
+  }
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(clientForm),
@@ -1405,20 +1414,63 @@ function formatDateTime(value: string) {
               <div className="full-width">
                 <label>Address line 1</label>
                 <input value={clientForm.addressLine1} onChange={(e) => updateClientForm('addressLine1', e.target.value)} />
+                            <div className="full-width">
+                <label>Status</label>
+                <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="CALL_BACK">Call Back</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
               </div>
-              <div className="full-width">
-                <label>Address line 2</label>
-                <input value={clientForm.addressLine2} onChange={(e) => updateClientForm('addressLine2', e.target.value)} />
-              </div>
-              <div>
-                <label>City / Town</label>
-                <input value={clientForm.city} onChange={(e) => updateClientForm('city', e.target.value)} />
-              </div>
-              <div>
-                <label>County</label>
-                      {clientForm.status === 'CALL_BACK' && (
+
+              {editForm.status === 'CALL_BACK' && (
                 <div className="callback-booking-panel full-width">
                   <h4>Callback booking</h4>
+
+                  <div className="callback-grid">
+                    <div>
+                      <label>Callback date</label>
+                      <input
+                        type="date"
+                        value={callbackForm.date}
+                        onChange={(e) =>
+                          setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label>Callback time</label>
+                      <input
+                        type="time"
+                        value={callbackForm.time}
+                        onChange={(e) =>
+                          setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label>Callback notes</label>
+                    <textarea
+                      rows={3}
+                      value={callbackForm.notes}
+                      onChange={(e) =>
+                        setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
+                      }
+                      placeholder="Add callback notes or appointment details"
+                    />
+                  </div>
+                </div>
+              )}
 
                   <div className="callback-grid">
                     <div>
