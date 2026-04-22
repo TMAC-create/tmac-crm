@@ -638,8 +638,8 @@ setSuccess('Client updated successfully.');
   function toTimeInputValue(value?: string | null) {
     if (!value) return '';
     const date = new Date(value);
-    const hours = `${date.getHours()}`.padStart(2, '0');
-    const minutes = `${date.getMinutes()}`.padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   }
 
@@ -783,6 +783,17 @@ setCreditorSearch('');
     setNewNote('');
     await loadClientDetail(selectedClientId);
     setSuccess('Note added successfully.');
+  }
+
+  function closeClientRecord() {
+    setSelectedClientId(null);
+    setSelectedClient(null);
+    setClientTab('overview');
+    setNewNote('');
+    setClientTasks([]);
+    setClientDocuments([]);
+    setSuccess('');
+    setError('');
   }
 
   async function deleteClient(id: string, fullName: string) {
@@ -1071,7 +1082,7 @@ async function updateClientTaskStatus(
 
 function beginRescheduleTask(task: TaskItem) {
   setError('');
-  setSuccess('Update the callback date/time in Overview, then click Save changes.');
+  setSuccess('Update the callback date and time in Overview, then click Save changes.');
   setEditForm((prev) => ({ ...prev, status: 'CALL_BACK' }));
   setCallbackForm({
     date: toDateInputValue(task.dueAt),
@@ -1286,7 +1297,7 @@ function formatDateTime(value: string) {
                   clients.slice(0, 8).map((client) => (
                     <tr key={client.id}>
                       <td><strong>{client.firstName} {client.lastName}</strong></td>
-                      <td><span className="pill">{client.status.replaceAll('_', ' ')}</span></td>
+                      <td><span className="pill">{client.status.replace(/_/g, ' ')}</span></td>
                       <td>{client.email || '-'}</td>
                       <td>
   <div className="date-added-cell">
@@ -1488,8 +1499,8 @@ function formatDateTime(value: string) {
           <input
             className="search-input"
             placeholder="Search by name, email, mobile or postcode"
-            value={clientSearch}
-            onChange={(e) => setClientSearch(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
 
           <div className="results-count">{filteredClients.length} records</div>
@@ -1531,7 +1542,7 @@ function formatDateTime(value: string) {
                     <td>{client.mobile || '-'}</td>
                     <td>{client.source || '-'}</td>
                     <td>
-                      <span className="pill">{client.status.replaceAll('_', ' ')}</span>
+                      <span className="pill">{client.status.replace(/_/g, ' ')}</span>
                     </td>
                     <td>
                       <div className="date-added-cell">
@@ -1545,6 +1556,9 @@ function formatDateTime(value: string) {
             </tbody>
           </table>
         </section>
+      </>
+    );
+  }
 
   function renderOverviewTab() {
     if (!selectedClient) return null;
@@ -1555,7 +1569,7 @@ function formatDateTime(value: string) {
           <div>
             <div className="client-title-row">
               <h3>{selectedClient.reference} — {selectedClient.title ? `${selectedClient.title} ` : ''}{selectedClient.firstName} {selectedClient.lastName}</h3>
-              <span className="pill">{editForm.status.replaceAll('_', ' ')}</span>
+              <span className="pill">{editForm.status.replace(/_/g, ' ')}</span>
             </div>
 
             <div className="client-meta-grid">
@@ -2866,7 +2880,7 @@ function renderTasksTab() {
                     <p>{task.description || 'No description'}</p>
                   </div>
                   <span className="pill">
-                    {task.outcome ? task.outcome.replaceAll('_', ' ') : 'DONE'}
+                    {task.outcome ? task.outcome.replace(/_/g, ' ') : 'DONE'}
                   </span>
                 </div>
 
@@ -2947,7 +2961,7 @@ function renderNotesTab() {
           ) : (
             activities.map((activity) => (
               <div key={activity.id} className="compact-activity-item">
-                <div className="compact-activity-type">{activity.type.replaceAll('_', ' ')}</div>
+                <div className="compact-activity-type">{activity.type.replace(/_/g, ' ')}</div>
                 <div className="compact-activity-description">{activity.description}</div>
                 <div className="compact-activity-time">{formatDateTime(activity.createdAt)}</div>
               </div>
