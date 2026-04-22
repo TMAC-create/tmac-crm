@@ -79,6 +79,47 @@ const noteSchema = z.object({
   body: z.string().min(1),
 });
 
+function lastSundayOfMonthUtc(year: number, monthIndex: number): Date {
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
+  const dayOfWeek = lastDay.getUTCDay();
+  return new Date(Date.UTC(year, monthIndex, lastDay.getUTCDate() - dayOfWeek));
+}
+
+function isLondonDst(datePart: string, timePart: string): boolean {
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(5, 7));
+  const day = Number(datePart.slice(8, 10));
+  const hour = Number(timePart.slice(0, 2));
+  const minute = Number(timePart.slice(3, 5));
+
+  const start = lastSundayOfMonthUtc(year, 2); // March
+  const end = lastSundayOfMonthUtc(year, 9);   // October
+
+  const currentNumeric = month * 1000000 + day * 10000 + hour * 100 + minute;
+  const startNumeric = 3 * 1000000 + start.getUTCDate() * 10000 + 100;
+  const endNumeric = 10 * 1000000 + end.getUTCDate() * 10000 + 200;
+
+  return currentNumeric >= startNumeric && currentNumeric < endNumeric;
+}
+
+function buildLondonCallbackDueAt(datePart?: string, timePart?: string): Date {
+  if (datePart && timePart) {
+    const year = Number(datePart.slice(0, 4));
+    const monthIndex = Number(datePart.slice(5, 7)) - 1;
+    const day = Number(datePart.slice(8, 10));
+    const hour = Number(timePart.slice(0, 2));
+    const minute = Number(timePart.slice(3, 5));
+
+    const offsetHours = isLondonDst(datePart, timePart) ? 1 : 0;
+    return new Date(Date.UTC(year, monthIndex, day, hour - offsetHours, minute, 0, 0));
+  }
+
+  const fallback = new Date();
+  fallback.setUTCDate(fallback.getUTCDate() + 1);
+  fallback.setUTCHours(10, 0, 0, 0);
+  return fallback;
+}
+
 clientsRouter.use(requireAuth);
 
 clientsRouter.get('/', async (_req, res) => {
@@ -208,105 +249,91 @@ clientsRouter.patch('/:id', async (req, res) => {
   });
 
   if (parsed.data.status === 'CALL_BACK') {
-  const callbackDate = parsed.data.metadataJson?.callback?.date;
-  const callbackTime = parsed.data.metadataJson?.callback?.time;
+    const callbackDate = parsed.data.metadataJson?.callback?.date;
+    const callbackTime = parsed.data.metadataJson?.callback?.time;
+    const callbackNotes = parsed.data.metadataJson?.callback?.notes;
+    const callbackDueAt = buildLondonCallbackDueAt(callbackDate, callbackTime);
 
-  const callbackDueAt = new Date();
+    const existingOpenCallbackTasks = await prisma.task.findMany({
+      where: {
+        clientId: req.params.id,
+        status: 'OPEN',
+        title: {
+          in: ['Client callback booked', 'Chase documents before callback'],
+        },
+      },
+    });
 
-  if (callbackDate && callbackTime) {
-    callbackDueAt.setFullYear(
-      Number(callbackDate.slice(0, 4)),
-      Number(callbackDate.slice(5, 7)) - 1,
-      Number(callbackDate.slice(8, 10))
+    const callbackTask = existingOpenCallbackTasks.find(
+      (task) => task.title === 'Client callback booked'
     );
-    callbackDueAt.setHours(
-      Number(callbackTime.slice(0, 2)),
-      Number(callbackTime.slice(3, 5)),
-      0,
-      0
+
+    const chaseDocsTask = existingOpenCallbackTasks.find(
+      (task) => task.title === 'Chase documents before callback'
     );
-  } else {
-    callbackDueAt.setDate(callbackDueAt.getDate() + 1);
-    callbackDueAt.setHours(10, 0, 0, 0);
+
+    if (callbackTask) {
+      await prisma.task.update({
+        where: { id: callbackTask.id },
+        data: {
+          dueAt: callbackDueAt,
+          description:
+            callbackNotes || 'Call client back at the scheduled appointment time.',
+          priority: 'HIGH',
+          status: 'OPEN',
+          outcome: null,
+        },
+      });
+    } else {
+      await prisma.task.create({
+        data: {
+          clientId: req.params.id,
+          title: 'Client callback booked',
+          description:
+            callbackNotes || 'Call client back at the scheduled appointment time.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'HIGH',
+        },
+      });
+    }
+
+    if (chaseDocsTask) {
+      await prisma.task.update({
+        where: { id: chaseDocsTask.id },
+        data: {
+          dueAt: callbackDueAt,
+          description: 'Check outstanding documents before the callback appointment.',
+          priority: 'MEDIUM',
+          status: 'OPEN',
+          outcome: null,
+        },
+      });
+    } else {
+      await prisma.task.create({
+        data: {
+          clientId: req.params.id,
+          title: 'Chase documents before callback',
+          description: 'Check outstanding documents before the callback appointment.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'MEDIUM',
+        },
+      });
+    }
   }
 
-  const existingOpenCallbackTasks = await prisma.task.findMany({
-    where: {
-      clientId: req.params.id,
-      status: 'OPEN',
-      title: {
-        in: ['Client callback booked', 'Chase documents before callback'],
-      },
+  await prisma.activity.create({
+    data: {
+      clientId: updated.id,
+      type: 'client_updated',
+      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
     },
   });
 
-  const callbackTask = existingOpenCallbackTasks.find(
-    (task) => task.title === 'Client callback booked'
-  );
-
-  const chaseDocsTask = existingOpenCallbackTasks.find(
-    (task) => task.title === 'Chase documents before callback'
-  );
-
-  if (callbackTask) {
-    await prisma.task.update({
-      where: { id: callbackTask.id },
-      data: {
-        dueAt: callbackDueAt,
-        description:
-          parsed.data.metadataJson?.callback?.notes ||
-          'Call client back at the scheduled appointment time.',
-        priority: 'HIGH',
-      },
-    });
-  } else {
-    await prisma.task.create({
-      data: {
-        clientId: req.params.id,
-        title: 'Client callback booked',
-        description:
-          parsed.data.metadataJson?.callback?.notes ||
-          'Call client back at the scheduled appointment time.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'HIGH',
-      },
-    });
-  }
-
-  if (chaseDocsTask) {
-    await prisma.task.update({
-      where: { id: chaseDocsTask.id },
-      data: {
-        dueAt: callbackDueAt,
-        description: 'Check outstanding documents before the callback appointment.',
-        priority: 'MEDIUM',
-      },
-    });
-  } else {
-    await prisma.task.create({
-      data: {
-        clientId: req.params.id,
-        title: 'Chase documents before callback',
-        description: 'Check outstanding documents before the callback appointment.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'MEDIUM',
-      },
-    });
-  }
-}
-
-await prisma.activity.create({
-  data: {
-    clientId: updated.id,
-    type: 'client_updated',
-    description: `Client ${updated.firstName} ${updated.lastName} updated.`,
-  },
+  res.json(updated);
 });
 
-res.json(updated);
-});
 clientsRouter.post('/:id/notes', async (req, res) => {
   const parsed = noteSchema.safeParse(req.body);
 
