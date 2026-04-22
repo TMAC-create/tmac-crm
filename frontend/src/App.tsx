@@ -1632,7 +1632,49 @@ function formatDateTime(value: string) {
                   <option value="LOST">Lost</option>
                 </select>
               </div>
-            </div>
+                        </div>
+
+            {editForm.status === 'CALL_BACK' && (
+              <div className="callback-booking-panel">
+                <h4>Callback booking</h4>
+
+                <div className="callback-grid">
+                  <div>
+                    <label>Callback date</label>
+                    <input
+                      type="date"
+                      value={callbackForm.date}
+                      onChange={(e) =>
+                        setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label>Callback time</label>
+                    <input
+                      type="time"
+                      value={callbackForm.time}
+                      onChange={(e) =>
+                        setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label>Callback notes</label>
+                  <textarea
+                    rows={3}
+                    value={callbackForm.notes}
+                    onChange={(e) =>
+                      setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                    placeholder="Add callback notes or appointment details"
+                  />
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="detail-section">
