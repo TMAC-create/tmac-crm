@@ -15,7 +15,6 @@ function isCallbackTaskTitle(title: string): boolean {
   return title === 'Client callback booked';
 }
 
-// GET tasks for a client
 router.get('/client/:clientId', async (req, res) => {
   const { clientId } = req.params;
 
@@ -27,7 +26,6 @@ router.get('/client/:clientId', async (req, res) => {
   res.json(tasks);
 });
 
-// CREATE task
 router.post('/', async (req, res) => {
   const { clientId, title, description, dueAt, priority } = req.body;
 
@@ -45,7 +43,6 @@ router.post('/', async (req, res) => {
   res.status(201).json(task);
 });
 
-// UPDATE task
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
   const { status, outcome, dueAt, description, priority, title } = req.body;
@@ -76,14 +73,13 @@ router.patch('/:id', async (req, res) => {
     });
 
     if (client) {
-      const metadata = (client.metadataJson ?? {}) as any;
-      const callbackMeta = (metadata.callback ?? {}) as any;
+      const metadata = (client.metadataJson ?? {}) as Record<string, any>;
+      const callbackMeta = (metadata.callback ?? {}) as Record<string, any>;
       const existingEventIds = callbackMeta.outlookEventIds;
 
       const shouldDeleteEvent =
         (task.status === 'DONE' && task.outcome === 'NO_ANSWER') ||
-        (task.status === 'DONE' && task.outcome === 'CANCELLED') ||
-        task.status === 'CANCELLED';
+        (task.status === 'DONE' && task.outcome === 'CANCELLED');
 
       if (shouldDeleteEvent && existingEventIds) {
         await deleteOutlookCallbackEvents(existingEventIds);
@@ -128,7 +124,7 @@ router.patch('/:id', async (req, res) => {
       }
     }
   }
-  
+
   res.json(task);
 });
 
