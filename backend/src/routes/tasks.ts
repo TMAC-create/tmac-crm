@@ -11,6 +11,10 @@ const router = Router();
 
 router.use(requireAuth);
 
+function isCallbackTaskTitle(title: string): boolean {
+  return title === 'Client callback booked';
+}
+
 // GET tasks for a client
 router.get('/client/:clientId', async (req, res) => {
   const { clientId } = req.params;
@@ -54,7 +58,7 @@ router.patch('/:id', async (req, res) => {
     return res.status(404).json({ message: 'Task not found.' });
   }
 
-  let task = await prisma.task.update({
+  const task = await prisma.task.update({
     where: { id },
     data: {
       status: status ?? undefined,
@@ -66,7 +70,7 @@ router.patch('/:id', async (req, res) => {
     },
   });
 
-  if (task.clientId && task.title === 'Client callback booked') {
+  if (task.clientId && isCallbackTaskTitle(task.title)) {
     const client = await prisma.client.findUnique({
       where: { id: task.clientId },
     });
@@ -78,7 +82,8 @@ router.patch('/:id', async (req, res) => {
 
       const shouldDeleteEvent =
         (task.status === 'DONE' && task.outcome === 'NO_ANSWER') ||
-        (task.status === 'DONE' && task.outcome === 'CANCELLED');
+        (task.status === 'DONE' && task.outcome === 'CANCELLED') ||
+        task.status === 'CANCELLED';
 
       if (shouldDeleteEvent && existingEventIds) {
         await deleteOutlookCallbackEvents(existingEventIds);
