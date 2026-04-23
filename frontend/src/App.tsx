@@ -696,6 +696,16 @@ setCreditorSearch('');
     await loadClientTasks(client.id);
   }
 
+
+  function closeClientRecord() {
+    setSelectedClientId(null);
+    setSelectedClient(null);
+    setClientTab('overview');
+    setView('clients');
+    setError('');
+    setSuccess('');
+  }
+
   async function createClient() {
     setError('');
     setSuccess('');
@@ -1488,8 +1498,8 @@ function formatDateTime(value: string) {
           <input
             className="search-input"
             placeholder="Search by name, email, mobile or postcode"
-            value={clientSearch}
-            onChange={(e) => setClientSearch(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
 
           <div className="results-count">{filteredClients.length} records</div>
