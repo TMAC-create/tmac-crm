@@ -82,8 +82,7 @@ router.patch('/:id', async (req, res) => {
 
       const shouldDeleteEvent =
         (task.status === 'DONE' && task.outcome === 'NO_ANSWER') ||
-        (task.status === 'DONE' && task.outcome === 'CANCELLED') ||
-        task.status === 'CANCELLED';
+        (task.status === 'DONE' && task.outcome === 'CANCELLED');
 
       if (shouldDeleteEvent && existingEventIds) {
         await deleteOutlookCallbackEvents(existingEventIds);
