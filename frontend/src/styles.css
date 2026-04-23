@@ -2014,3 +2014,24 @@ dd { margin: 0; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Manual task modal */
+.modal {
+  width: min(100%, 640px);
+}
+
+.modal-form textarea,
+.modal-form input,
+.modal-form select {
+  width: 100%;
+}
+
+.modal-form .grid-2 {
+  margin-bottom: 0;
+}
+
+.task-card .secondary.small-button {
+  background: #eef2ff;
+  color: #4f46e5;
+}
