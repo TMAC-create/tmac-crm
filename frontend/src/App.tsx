@@ -344,6 +344,15 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
+const [showTaskModal, setShowTaskModal] = useState(false);
+const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+const [taskForm, setTaskForm] = useState({
+  title: '',
+  description: '',
+  dueDate: '',
+  dueTime: '',
+  priority: 'MEDIUM' as 'LOW' | 'MEDIUM' | 'HIGH',
+});
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -1077,49 +1086,109 @@ async function updateClientTaskStatus(
 
   if (selectedClientId) {
     await loadClientTasks(selectedClientId);
+    await loadClientDetail(selectedClientId);
   }
 }
 
-function beginRescheduleTask(task: TaskItem) {
-  setError('');
-  setSuccess('Update the callback date and time in Overview, then click Save changes.');
-  setEditForm((prev) => ({ ...prev, status: 'CALL_BACK' }));
-  setCallbackForm({
-    date: toDateInputValue(task.dueAt),
-    time: toTimeInputValue(task.dueAt),
-    notes: task.description || '',
+function openNewTask() {
+  setEditingTask(null);
+  setTaskForm({
+    title: '',
+    description: '',
+    dueDate: '',
+    dueTime: '',
+    priority: 'MEDIUM',
   });
-  setClientTab('overview');
+  setShowTaskModal(true);
 }
 
-async function createClientTask(
-  title: string,
-  description: string,
-  dueAt?: string
-) {
-  if (!selectedClientId) return;
+function openEditTask(task: TaskItem) {
+  setEditingTask(task);
 
-  const response = await fetch(`${API_URL}/tasks`, {
-    method: 'POST',
+  let dueDate = '';
+  let dueTime = '';
+
+  if (task.dueAt) {
+    const parsed = new Date(task.dueAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      const london = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/London',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(parsed);
+      const time = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(parsed);
+      dueDate = london;
+      dueTime = time;
+    }
+  }
+
+  setTaskForm({
+    title: task.title,
+    description: task.description || '',
+    dueDate,
+    dueTime,
+    priority: task.priority,
+  });
+  setShowTaskModal(true);
+}
+
+async function saveTask() {
+  if (!selectedClientId) return;
+  if (!taskForm.title.trim()) {
+    setError('Task title is required.');
+    return;
+  }
+
+  setError('');
+  setSuccess('');
+
+  const dueAt =
+    taskForm.dueDate && taskForm.dueTime
+      ? `${taskForm.dueDate}T${taskForm.dueTime}:00`
+      : null;
+
+  const url = editingTask ? `${API_URL}/tasks/${editingTask.id}` : `${API_URL}/tasks`;
+  const method = editingTask ? 'PUT' : 'POST';
+
+  const response = await fetch(url, {
+    method,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       clientId: selectedClientId,
-      title,
-      description,
-      dueAt: dueAt || null,
+      title: taskForm.title.trim(),
+      description: taskForm.description.trim(),
+      dueAt,
+      priority: taskForm.priority,
     }),
   });
 
   if (!response.ok) {
-    setError('Could not create task.');
+    setError(editingTask ? 'Could not update task.' : 'Could not create task.');
     return;
   }
 
+  setShowTaskModal(false);
+  setEditingTask(null);
+  setTaskForm({
+    title: '',
+    description: '',
+    dueDate: '',
+    dueTime: '',
+    priority: 'MEDIUM',
+  });
+
   await loadClientTasks(selectedClientId);
-  setSuccess('Task created successfully.');
+  await loadClientDetail(selectedClientId);
+  setSuccess(editingTask ? 'Task updated successfully.' : 'Task created successfully.');
 }
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
@@ -2794,23 +2863,14 @@ function renderTasksTab() {
         <span>{clientTasks.length} total</span>
       </div>
 
-      <div className="form-actions" style={{ marginBottom: '16px' }}>
-        <button
-          className="secondary"
-          onClick={() =>
-            void createClientTask(
-              'Manual follow-up',
-              'Follow up with client.',
-              undefined
-            )
-          }
-        >
-          Add quick task
+      <div className="form-actions" style={{ marginBottom: '16px', justifyContent: 'flex-start' }}>
+        <button className="secondary" onClick={openNewTask}>
+          Add task
         </button>
       </div>
 
       <div className="tasks-section">
-        <h4>Open tasks</h4>
+        <h4 style={{ marginBottom: '12px' }}>Open tasks</h4>
         {openTasks.length === 0 ? (
           <p className="muted-text">No open tasks.</p>
         ) : (
@@ -2832,34 +2892,38 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-actions">
-  <button
-    className="primary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
-  >
-    Complete
-  </button>
+                  <button className="secondary small-button" onClick={() => openEditTask(task)}>
+                    Edit
+                  </button>
 
-  <button
-    className="secondary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
-  >
-    No answer
-  </button>
+                  <button
+                    className="primary small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
+                  >
+                    Complete
+                  </button>
 
-  <button
-    className="secondary small-button"
-    onClick={() => beginRescheduleTask(task)}
-  >
-    Reschedule
-  </button>
+                  <button
+                    className="secondary small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
+                  >
+                    No answer
+                  </button>
 
-  <button
-    className="danger-button small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
-  >
-    Cancel
-  </button>
-</div>
+                  <button
+                    className="secondary small-button"
+                    onClick={() => openEditTask(task)}
+                  >
+                    Reschedule
+                  </button>
+
+                  <button
+                    className="danger-button small-button"
+                    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -2867,7 +2931,7 @@ function renderTasksTab() {
       </div>
 
       <div className="tasks-section" style={{ marginTop: '24px' }}>
-        <h4>Completed tasks</h4>
+        <h4 style={{ marginBottom: '12px' }}>Completed tasks</h4>
         {doneTasks.length === 0 ? (
           <p className="muted-text">No completed tasks yet.</p>
         ) : (
@@ -2880,7 +2944,7 @@ function renderTasksTab() {
                     <p>{task.description || 'No description'}</p>
                   </div>
                   <span className="pill">
-                    {task.outcome ? task.outcome.replace(/_/g, ' ') : 'DONE'}
+                    {task.outcome ? task.outcome.replaceAll('_', ' ') : 'DONE'}
                   </span>
                 </div>
 
@@ -3195,6 +3259,84 @@ function renderPlaceholder(title: string) {
       {view === 'admin' && renderAdminTab()}
     </>
   )}
+      {showTaskModal && (
+        <div className="modal-backdrop">
+          <div className="modal card">
+            <div className="modal-header">
+              <h3>{editingTask ? 'Edit task' : 'New task'}</h3>
+              <button className="ghost" onClick={() => setShowTaskModal(false)}>
+                Close
+              </button>
+            </div>
+
+            <div className="modal-form">
+              <div>
+                <label>Task title</label>
+                <input
+                  value={taskForm.title}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Enter task title"
+                />
+              </div>
+
+              <div>
+                <label>Description</label>
+                <input
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Add notes or details"
+                />
+              </div>
+
+              <div className="grid-2">
+                <div>
+                  <label>Date</label>
+                  <input
+                    type="date"
+                    value={taskForm.dueDate}
+                    onChange={(e) => setTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label>Time</label>
+                  <input
+                    type="time"
+                    value={taskForm.dueTime}
+                    onChange={(e) => setTaskForm((prev) => ({ ...prev, dueTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label>Priority</label>
+                <select
+                  value={taskForm.priority}
+                  onChange={(e) =>
+                    setTaskForm((prev) => ({
+                      ...prev,
+                      priority: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH',
+                    }))
+                  }
+                >
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+
+              <div className="modal-actions">
+                <button className="secondary" onClick={() => setShowTaskModal(false)}>
+                  Cancel
+                </button>
+                <button className="primary" onClick={() => void saveTask()}>
+                  Save task
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 </main>
 </div>
 );
