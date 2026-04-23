@@ -1546,6 +1546,10 @@ function formatDateTime(value: string) {
           </table>
         </section>
 
+        </>
+    );
+  }
+
   function renderOverviewTab() {
     if (!selectedClient) return null;
 
