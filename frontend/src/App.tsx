@@ -24,6 +24,16 @@ type TaskItem = {
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
   createdAt: string;
   updatedAt: string;
+  client?: {
+    id: string;
+    reference?: number | null;
+    title?: string | null;
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    mobile?: string | null;
+    status?: string | null;
+  } | null;
 };
 type ManualTaskForm = {
   title: string;
@@ -371,6 +381,7 @@ const [creditorAdminName, setCreditorAdminName] = useState('');
 const [editingCreditorId, setEditingCreditorId] = useState<string | null>(null);
 const [clientDocuments, setClientDocuments] = useState<ClientDocumentItem[]>([]);
 const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
+const [globalTasks, setGlobalTasks] = useState<TaskItem[]>([]);
 const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
 
@@ -378,6 +389,12 @@ const [newNote, setNewNote] = useState('');
 useEffect(() => {
   localStorage.setItem('tmac-creditor-master-list', JSON.stringify(creditorMasterList));
 }, [creditorMasterList]);
+
+useEffect(() => {
+  if (isLoggedIn && view === 'tasks') {
+    void loadGlobalTasks();
+  }
+}, [isLoggedIn, view]);
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
@@ -701,6 +718,7 @@ setCreditorSearch('');
     setShowAddClient(false);
     setSuccess('');
     setError('');
+    setView('clients');
     await loadClientDetail(client.id);
     await loadClientDocuments(client.id);
     await loadClientTasks(client.id);
@@ -1058,6 +1076,38 @@ async function loadClientTasks(clientId: string) {
   setClientTasks(data);
 }
 
+async function loadGlobalTasks() {
+  const response = await fetch(`${API_URL}/tasks/open`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    setGlobalTasks([]);
+    return;
+  }
+
+  const data = await response.json();
+  setGlobalTasks(data);
+}
+
+async function openClientFromTask(task: TaskItem) {
+  if (!task.clientId) return;
+  const knownClient = clients.find((client) => client.id === task.clientId);
+  setView('clients');
+  setShowAddClient(false);
+  setSuccess('');
+  setError('');
+
+  if (knownClient) {
+    await openClient(knownClient);
+    return;
+  }
+
+  await loadClientDetail(task.clientId);
+  await loadClientDocuments(task.clientId);
+  await loadClientTasks(task.clientId);
+}
+
 function taskDateTimeParts(value?: string | null) {
   if (!value) return { date: '', time: '' };
   const date = new Date(value);
@@ -1138,6 +1188,7 @@ async function saveManualTask() {
   setManualTaskForm(emptyManualTaskForm);
   await loadClientTasks(selectedClientId);
   await loadClientDetail(selectedClientId);
+  await loadGlobalTasks();
   setSuccess(editingTask ? 'Task updated successfully.' : 'Task created successfully.');
 }
 
@@ -1164,7 +1215,9 @@ async function updateClientTaskStatus(
     await loadClientTasks(selectedClientId);
     await loadClientDetail(selectedClientId);
   }
+  await loadGlobalTasks();
 }
+
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
@@ -3065,6 +3118,113 @@ function renderNotesTab() {
   );
  }
 
+
+function taskGroup(task: TaskItem) {
+  if (!task.dueAt) return 'No due date';
+
+  const due = new Date(task.dueAt);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+  if (due < startOfToday) return 'Overdue';
+  if (due >= startOfToday && due < startOfTomorrow) return 'Due today';
+  return 'Upcoming';
+}
+
+function renderTaskCard(task: TaskItem, showClient: boolean) {
+  const clientName = task.client
+    ? `${task.client.reference ? `${task.client.reference} — ` : ''}${task.client.title ? `${task.client.title} ` : ''}${task.client.firstName} ${task.client.lastName}`
+    : 'Client not linked';
+
+  return (
+    <div key={task.id} className="task-card global-task-card">
+      <div className="task-card-top">
+        <div>
+          {showClient && <div className="global-task-client">{clientName}</div>}
+          <strong>{task.title}</strong>
+          <p>{task.description || 'No description'}</p>
+        </div>
+        <span className={`pill priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
+      </div>
+
+      <div className="task-meta">
+        <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
+      </div>
+
+      <div className="task-actions">
+        {showClient && (
+          <button className="secondary small-button" onClick={() => void openClientFromTask(task)}>
+            Open client
+          </button>
+        )}
+        <button className="primary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}>
+          Complete
+        </button>
+        <button className="secondary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
+          No answer
+        </button>
+        <button className="danger-button small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function renderGlobalTasksPage() {
+  const groups = ['Overdue', 'Due today', 'Upcoming', 'No due date'] as const;
+  const grouped = groups.reduce<Record<(typeof groups)[number], TaskItem[]>>(
+    (acc, group) => {
+      acc[group] = [];
+      return acc;
+    },
+    {} as Record<(typeof groups)[number], TaskItem[]>
+  );
+
+  globalTasks.forEach((task) => {
+    const group = taskGroup(task) as (typeof groups)[number];
+    grouped[group].push(task);
+  });
+
+  return (
+    <>
+      <header className="page-header premium-header">
+        <div>
+          <div className="eyebrow">Task Management</div>
+          <h2>Open tasks</h2>
+          <p>All outstanding client tasks, grouped by urgency.</p>
+        </div>
+        <div className="header-actions">
+          <button className="secondary" onClick={() => void loadGlobalTasks()}>
+            Refresh tasks
+          </button>
+        </div>
+      </header>
+
+      <section className="global-task-board">
+        {groups.map((group) => (
+          <section key={group} className="card premium-panel global-task-section">
+            <div className="table-header">
+              <h3>{group}</h3>
+              <span>{grouped[group].length} tasks</span>
+            </div>
+
+            {grouped[group].length === 0 ? (
+              <p className="muted-text">No tasks in this section.</p>
+            ) : (
+              <div className="task-list">
+                {grouped[group].map((task) => renderTaskCard(task, true))}
+              </div>
+            )}
+          </section>
+        ))}
+      </section>
+    </>
+  );
+}
+
 function renderPlaceholder(title: string) {
   return (
     <section className="card placeholder-card premium-panel">
@@ -3110,6 +3270,7 @@ function renderPlaceholder(title: string) {
                 setClients([]);
                 setSelectedClientId(null);
                 setSelectedClient(null);
+                setGlobalTasks([]);
                 setView('dashboard');
                 setError('');
                 setSuccess('');
@@ -3142,7 +3303,7 @@ function renderPlaceholder(title: string) {
 
       {view === 'dashboard' && renderDashboard()}
       {view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
-      {view === 'tasks' && renderPlaceholder('Tasks')}
+      {view === 'tasks' && renderGlobalTasksPage()}
       {view === 'reporting' && renderPlaceholder('Reporting')}
       {view === 'admin' && renderAdminTab()}
     </>
