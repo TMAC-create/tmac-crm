@@ -3,8 +3,10 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   deleteOutlookCallbackEvents,
-  londonPartsFromDate,
+  deleteOutlookTaskEvents,
   upsertOutlookCallbackEvents,
+  upsertOutlookTaskEvents,
+  londonPartsFromDate,
 } from '../services/outlook.js';
 
 const router = Router();
@@ -12,10 +14,9 @@ const router = Router();
 router.use(requireAuth);
 
 function isCallbackTaskTitle(title: string): boolean {
-  return title === 'Client callback booked';
+  return title === 'Client callback booked' || title === 'Chase documents before callback';
 }
 
-// GET tasks for a client
 router.get('/client/:clientId', async (req, res) => {
   const { clientId } = req.params;
 
@@ -27,7 +28,6 @@ router.get('/client/:clientId', async (req, res) => {
   res.json(tasks);
 });
 
-// CREATE task
 router.post('/', async (req, res) => {
   const { clientId, title, description, dueAt, priority } = req.body;
 
@@ -42,10 +42,35 @@ router.post('/', async (req, res) => {
     },
   });
 
+  if (task.clientId && task.dueAt) {
+    const client = await prisma.client.findUnique({ where: { id: task.clientId } });
+    if (client) {
+      const metadata = (client.metadataJson ?? {}) as any;
+      const manualTaskEvents = (metadata.manualTaskEvents ?? {}) as Record<string, any>;
+      const eventIds = await upsertOutlookTaskEvents({
+        client,
+        task,
+        existingEventIds: manualTaskEvents[task.id] ?? {},
+      });
+
+      await prisma.client.update({
+        where: { id: client.id },
+        data: {
+          metadataJson: {
+            ...metadata,
+            manualTaskEvents: {
+              ...manualTaskEvents,
+              [task.id]: eventIds ?? {},
+            },
+          },
+        },
+      });
+    }
+  }
+
   res.status(201).json(task);
 });
 
-// UPDATE task
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
   const { status, outcome, dueAt, description, priority, title } = req.body;
@@ -70,64 +95,109 @@ router.patch('/:id', async (req, res) => {
     },
   });
 
-  if (task.clientId && isCallbackTaskTitle(task.title)) {
-    const client = await prisma.client.findUnique({
-      where: { id: task.clientId },
-    });
+  if (task.clientId) {
+    const client = await prisma.client.findUnique({ where: { id: task.clientId } });
 
     if (client) {
       const metadata = (client.metadataJson ?? {}) as any;
       const callbackMeta = (metadata.callback ?? {}) as any;
-      const existingEventIds = callbackMeta.outlookEventIds;
+      const manualTaskEvents = (metadata.manualTaskEvents ?? {}) as Record<string, any>;
 
-      const shouldDeleteEvent =
-        (task.status === 'DONE' && task.outcome === 'NO_ANSWER') ||
-        (task.status === 'DONE' && task.outcome === 'CANCELLED');
+      if (isCallbackTaskTitle(task.title)) {
+        const existingEventIds = callbackMeta.outlookEventIds;
 
-      if (shouldDeleteEvent && existingEventIds) {
-        await deleteOutlookCallbackEvents(existingEventIds);
+        const shouldDeleteCallbackEvents =
+          task.status === 'DONE' &&
+          (task.outcome === 'NO_ANSWER' || task.outcome === 'CANCELLED');
 
-        await prisma.client.update({
-          where: { id: client.id },
-          data: {
-            metadataJson: {
-              ...metadata,
-              callback: {
-                ...callbackMeta,
-                outlookEventIds: {},
+        if (shouldDeleteCallbackEvents && existingEventIds) {
+          await deleteOutlookCallbackEvents(existingEventIds);
+
+          await prisma.client.update({
+            where: { id: client.id },
+            data: {
+              metadataJson: {
+                ...metadata,
+                callback: {
+                  ...callbackMeta,
+                  outlookEventIds: {},
+                },
               },
             },
-          },
-        });
-      } else if (task.status === 'OPEN' && task.dueAt) {
-        const londonParts = londonPartsFromDate(task.dueAt);
-        const eventIds = await upsertOutlookCallbackEvents({
-          client,
-          callbackDate: londonParts.date,
-          callbackTime: londonParts.time,
-          notes: task.description ?? undefined,
-          existingEventIds,
-        });
+          });
+        } else if (task.status === 'OPEN' && task.dueAt && task.title === 'Client callback booked') {
+          const london = londonPartsFromDate(task.dueAt);
+          const eventIds = await upsertOutlookCallbackEvents({
+            client,
+            callbackDate: london.date,
+            callbackTime: london.time,
+            notes: task.description ?? undefined,
+            existingEventIds,
+          });
 
-        await prisma.client.update({
-          where: { id: client.id },
-          data: {
-            metadataJson: {
-              ...metadata,
-              callback: {
-                ...callbackMeta,
-                date: londonParts.date,
-                time: londonParts.time,
-                notes: task.description ?? callbackMeta.notes ?? '',
-                outlookEventIds: eventIds ?? {},
+          await prisma.client.update({
+            where: { id: client.id },
+            data: {
+              metadataJson: {
+                ...metadata,
+                callback: {
+                  ...callbackMeta,
+                  date: london.date,
+                  time: london.time,
+                  notes: task.description ?? callbackMeta.notes ?? '',
+                  outlookEventIds: eventIds ?? {},
+                },
               },
             },
-          },
-        });
+          });
+        }
+      } else {
+        const existingEventIds = manualTaskEvents[task.id] ?? {};
+
+        const shouldDeleteManualEvents =
+          (task.status === 'DONE' && task.outcome === 'COMPLETED') ||
+          (task.status === 'DONE' && task.outcome === 'CANCELLED') ||
+          (task.status === 'DONE' && task.outcome === 'NO_ANSWER');
+
+        if (shouldDeleteManualEvents && (existingEventIds.mike || existingEventIds.steven)) {
+          await deleteOutlookTaskEvents(existingEventIds);
+
+          const nextManualTaskEvents = { ...manualTaskEvents };
+          delete nextManualTaskEvents[task.id];
+
+          await prisma.client.update({
+            where: { id: client.id },
+            data: {
+              metadataJson: {
+                ...metadata,
+                manualTaskEvents: nextManualTaskEvents,
+              },
+            },
+          });
+        } else if (task.status === 'OPEN' && task.dueAt) {
+          const eventIds = await upsertOutlookTaskEvents({
+            client,
+            task,
+            existingEventIds,
+          });
+
+          await prisma.client.update({
+            where: { id: client.id },
+            data: {
+              metadataJson: {
+                ...metadata,
+                manualTaskEvents: {
+                  ...manualTaskEvents,
+                  [task.id]: eventIds ?? {},
+                },
+              },
+            },
+          });
+        }
       }
     }
   }
-  
+
   res.json(task);
 });
 
