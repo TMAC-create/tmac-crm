@@ -25,6 +25,21 @@ type TaskItem = {
   createdAt: string;
   updatedAt: string;
 };
+type ManualTaskForm = {
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+};
+
+const emptyManualTaskForm: ManualTaskForm = {
+  title: '',
+  description: '',
+  date: '',
+  time: '',
+  priority: 'MEDIUM',
+};
 type DebtItem = {
   id: string;
   creditorName: string;
@@ -344,6 +359,9 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
+const [showTaskModal, setShowTaskModal] = useState(false);
+const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+const [manualTaskForm, setManualTaskForm] = useState<ManualTaskForm>(emptyManualTaskForm);
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -753,6 +771,7 @@ setCreditorSearch('');
 
   await loadClients();
   await loadClientDetail(selectedClientId);
+  await loadClientTasks(selectedClientId);
   setSuccess('Client updated successfully.');
 }
 
@@ -1030,15 +1049,96 @@ async function downloadClientDocument(documentId: string, originalName: string) 
 }
 async function loadClientTasks(clientId: string) {
   const response = await fetch(`${API_URL}/tasks/client/${clientId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) return;
 
   const data = await response.json();
   setClientTasks(data);
+}
+
+function taskDateTimeParts(value?: string | null) {
+  if (!value) return { date: '', time: '' };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' };
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` };
+}
+
+function buildTaskDueAt(date: string, time: string) {
+  if (!date || !time) return null;
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function openNewTaskModal() {
+  setEditingTask(null);
+  setManualTaskForm(emptyManualTaskForm);
+  setShowTaskModal(true);
+}
+
+function openEditTaskModal(task: TaskItem) {
+  const parts = taskDateTimeParts(task.dueAt);
+  setEditingTask(task);
+  setManualTaskForm({
+    title: task.title,
+    description: task.description || '',
+    date: parts.date,
+    time: parts.time,
+    priority: task.priority || 'MEDIUM',
+  });
+  setShowTaskModal(true);
+}
+
+async function saveManualTask() {
+  if (!selectedClientId) return;
+
+  const title = manualTaskForm.title.trim();
+  if (!title) {
+    setError('Task title is required.');
+    return;
+  }
+
+  setError('');
+  setSuccess('');
+
+  const dueAt = buildTaskDueAt(manualTaskForm.date, manualTaskForm.time);
+  const url = editingTask ? `${API_URL}/tasks/${editingTask.id}` : `${API_URL}/tasks`;
+
+  const response = await fetch(url, {
+    method: editingTask ? 'PATCH' : 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      clientId: selectedClientId,
+      title,
+      description: manualTaskForm.description || null,
+      dueAt,
+      priority: manualTaskForm.priority,
+      status: 'OPEN',
+      outcome: null,
+    }),
+  });
+
+  if (!response.ok) {
+    setError(editingTask ? 'Could not update task.' : 'Could not create task.');
+    return;
+  }
+
+  setShowTaskModal(false);
+  setEditingTask(null);
+  setManualTaskForm(emptyManualTaskForm);
+  await loadClientTasks(selectedClientId);
+  await loadClientDetail(selectedClientId);
+  setSuccess(editingTask ? 'Task updated successfully.' : 'Task created successfully.');
 }
 
 async function updateClientTaskStatus(
@@ -1062,38 +1162,10 @@ async function updateClientTaskStatus(
 
   if (selectedClientId) {
     await loadClientTasks(selectedClientId);
+    await loadClientDetail(selectedClientId);
   }
 }
 
-async function createClientTask(
-  title: string,
-  description: string,
-  dueAt?: string
-) {
-  if (!selectedClientId) return;
-
-  const response = await fetch(`${API_URL}/tasks`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      clientId: selectedClientId,
-      title,
-      description,
-      dueAt: dueAt || null,
-    }),
-  });
-
-  if (!response.ok) {
-    setError('Could not create task.');
-    return;
-  }
-
-  await loadClientTasks(selectedClientId);
-  setSuccess('Task created successfully.');
-}
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
 }
@@ -1359,103 +1431,20 @@ function formatDateTime(value: string) {
                 <input type="date" value={clientForm.dob} onChange={(e) => updateClientForm('dob', e.target.value)} />
               </div>
               <div>
-  <label>Status</label>
-  <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
-    <option value="NEW_LEAD">New Lead</option>
-    <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-    <option value="CALL_BACK">Call Back</option>
-    <option value="QUALIFIED">Qualified</option>
-    <option value="DOCS_REQUESTED">Docs Requested</option>
-    <option value="DOCS_RECEIVED">Docs Received</option>
-    <option value="SUBMITTED">Submitted</option>
-    <option value="APPROVED">Approved</option>
-    <option value="COMPLETED">Completed</option>
-    <option value="LOST">Lost</option>
-  </select>
-</div>
-
-{editForm.status === 'CALL_BACK' && (
-  <div className="callback-booking-panel full-width">
-    <h4>Callback booking</h4>
-
-    <div className="callback-grid">
-      <div>
-        <label>Callback date</label>
-        <input
-          type="date"
-          value={callbackForm.date}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
-          }
-        />
-      </div>
-
-      <div>
-        <label>Callback time</label>
-        <input
-          type="time"
-          value={callbackForm.time}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
-          }
-        />
-      </div>
-    </div>
-
-    <div>
-      <label>Callback notes</label>
-      <textarea
-        rows={3}
-        value={callbackForm.notes}
-        onChange={(e) =>
-          setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
-        }
-        placeholder="Add callback notes or appointment details"
-      />
-    </div>
-  </div>
-)}
-              {clientForm.status === 'CALL_BACK' && (
-  <div className="callback-booking-panel">
-    <h4>Callback booking</h4>
-
-    <div className="callback-grid">
-      <div>
-        <label>Callback date</label>
-        <input
-          type="date"
-          value={callbackForm.date}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
-          }
-        />
-      </div>
-
-      <div>
-        <label>Callback time</label>
-        <input
-          type="time"
-          value={callbackForm.time}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
-          }
-        />
-      </div>
-    </div>
-
-    <div>
-      <label>Callback notes</label>
-      <textarea
-        rows={3}
-        value={callbackForm.notes}
-        onChange={(e) =>
-          setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
-        }
-        placeholder="Add callback notes or appointment details"
-      />
-    </div>
-  </div>
-)}
+                <label>Status</label>
+                <select value={clientForm.status} onChange={(e) => updateClientForm('status', e.target.value)}>
+                  <option value="NEW_LEAD">New Lead</option>
+                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+                  <option value="CALL_BACK">Call Back</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="DOCS_REQUESTED">Docs Requested</option>
+                  <option value="DOCS_RECEIVED">Docs Received</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="LOST">Lost</option>
+                </select>
+              </div>
               <div className="full-width">
                 <label>Address line 1</label>
                 <input value={clientForm.addressLine1} onChange={(e) => updateClientForm('addressLine1', e.target.value)} />
@@ -1658,6 +1647,39 @@ function formatDateTime(value: string) {
                   <option value="COMPLETED">Completed</option>
                   <option value="LOST">Lost</option>
                 </select>
+
+              {editForm.status === 'CALL_BACK' && (
+                <div className="callback-booking-panel full-width">
+                  <h4>Callback booking</h4>
+                  <div className="callback-grid">
+                    <div>
+                      <label>Callback date</label>
+                      <input
+                        type="date"
+                        value={callbackForm.date}
+                        onChange={(e) => setCallbackForm((prev) => ({ ...prev, date: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label>Callback time</label>
+                      <input
+                        type="time"
+                        value={callbackForm.time}
+                        onChange={(e) => setCallbackForm((prev) => ({ ...prev, time: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label>Callback notes</label>
+                    <textarea
+                      rows={3}
+                      value={callbackForm.notes}
+                      onChange={(e) => setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Add callback notes or appointment details"
+                    />
+                  </div>
+                </div>
+              )}
               </div>
             </div>
           </section>
@@ -2746,22 +2768,13 @@ function renderTasksTab() {
       </div>
 
       <div className="form-actions" style={{ marginBottom: '16px' }}>
-        <button
-          className="secondary"
-          onClick={() =>
-            void createClientTask(
-              'Manual follow-up',
-              'Follow up with client.',
-              undefined
-            )
-          }
-        >
-          Add quick task
+        <button className="secondary" onClick={openNewTaskModal}>
+          Add task
         </button>
       </div>
 
       <div className="tasks-section">
-        <h4>Open tasks</h4>
+        <h4 style={{ marginBottom: '12px' }}>Open tasks</h4>
         {openTasks.length === 0 ? (
           <p className="muted-text">No open tasks.</p>
         ) : (
@@ -2783,34 +2796,22 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-actions">
-  <button
-    className="primary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
-  >
-    Complete
-  </button>
-
-  <button
-    className="secondary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
-  >
-    No answer
-  </button>
-
-  <button
-    className="secondary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'RESCHEDULED')}
-  >
-    Rescheduled
-  </button>
-
-  <button
-    className="danger-button small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
-  >
-    Cancel
-  </button>
-</div>
+                  <button className="secondary small-button" onClick={() => openEditTaskModal(task)}>
+                    Edit
+                  </button>
+                  <button className="primary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}>
+                    Complete
+                  </button>
+                  <button className="secondary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
+                    No answer
+                  </button>
+                  <button className="secondary small-button" onClick={() => openEditTaskModal(task)}>
+                    Reschedule
+                  </button>
+                  <button className="danger-button small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
+                    Cancel
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -2818,7 +2819,7 @@ function renderTasksTab() {
       </div>
 
       <div className="tasks-section" style={{ marginTop: '24px' }}>
-        <h4>Completed tasks</h4>
+        <h4 style={{ marginBottom: '12px' }}>Completed tasks</h4>
         {doneTasks.length === 0 ? (
           <p className="muted-text">No completed tasks yet.</p>
         ) : (
@@ -3147,6 +3148,74 @@ function renderPlaceholder(title: string) {
     </>
   )}
 </main>
+      {showTaskModal && (
+        <div className="modal-backdrop">
+          <div className="modal card">
+            <div className="modal-header">
+              <h3>{editingTask ? 'Edit task' : 'Add task'}</h3>
+              <button className="ghost" onClick={() => setShowTaskModal(false)}>Close</button>
+            </div>
+            <div className="modal-form">
+              <div>
+                <label>Task title</label>
+                <input
+                  value={manualTaskForm.title}
+                  onChange={(e) => setManualTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Chase documents"
+                />
+              </div>
+              <div>
+                <label>Description</label>
+                <textarea
+                  value={manualTaskForm.description}
+                  onChange={(e) => setManualTaskForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Add task notes"
+                  rows={3}
+                />
+              </div>
+              <div className="grid-2">
+                <div>
+                  <label>Due date</label>
+                  <input
+                    type="date"
+                    value={manualTaskForm.date}
+                    onChange={(e) => setManualTaskForm((prev) => ({ ...prev, date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label>Due time</label>
+                  <input
+                    type="time"
+                    value={manualTaskForm.time}
+                    onChange={(e) => setManualTaskForm((prev) => ({ ...prev, time: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label>Priority</label>
+                <select
+                  value={manualTaskForm.priority}
+                  onChange={(e) =>
+                    setManualTaskForm((prev) => ({
+                      ...prev,
+                      priority: e.target.value as ManualTaskForm['priority'],
+                    }))
+                  }
+                >
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button className="secondary" onClick={() => setShowTaskModal(false)}>Cancel</button>
+                <button className="primary" onClick={() => void saveManualTask()}>Save task</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 </div>
 );
 }
