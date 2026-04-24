@@ -1,264 +1,241 @@
-import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
-import type { OutlookEventIds } from '../services/outlook.js';
-import {
-  deleteOutlookCallbackEvents,
-  deleteOutlookTaskEvents,
-  londonPartsFromDate,
-  upsertOutlookCallbackEvents,
-  upsertOutlookTaskEvents,
-} from '../services/outlook.js';
+const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
-const router = Router();
+const MAILBOXES = {
+  mike: 'mike@themoneyadvicecentre.com',
+  steven: 'steven@themoneyadvicecentre.com',
+} as const;
 
-router.use(requireAuth);
+export type OutlookEventIds = {
+  mike?: string;
+  steven?: string;
+};
 
-const OUTLOOK_MARKER = '\n\n<!--TMAC_OUTLOOK:';
+type ClientSummary = {
+  id: string;
+  reference?: number | null;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  mobile?: string | null;
+};
 
-function isCallbackTaskTitle(title: string): boolean {
-  return title === 'Client callback booked';
+type CallbackArgs = {
+  client: ClientSummary;
+  callbackDate?: string;
+  callbackTime?: string;
+  notes?: string | null;
+  existingEventIds?: OutlookEventIds | null;
+};
+
+type TaskArgs = {
+  client: ClientSummary;
+  title: string;
+  description?: string | null;
+  dueAt?: string | Date | null;
+  existingEventIds?: OutlookEventIds | null;
+};
+
+function getEnv(name: string): string | undefined {
+  return process.env[name]?.trim();
 }
 
-function sanitiseDescription(value?: string | null): string | null {
-  if (!value) return null;
-  const index = value.indexOf(OUTLOOK_MARKER);
-  const clean = index >= 0 ? value.slice(0, index) : value;
-  const trimmed = clean.trim();
-  return trimmed ? trimmed : null;
+function isConfigured(): boolean {
+  return Boolean(
+    getEnv('MICROSOFT_TENANT_ID') &&
+      getEnv('MICROSOFT_CLIENT_ID') &&
+      getEnv('MICROSOFT_CLIENT_SECRET'),
+  );
 }
 
-function readOutlookEventIds(description?: string | null): OutlookEventIds | null {
-  if (!description) return null;
-  const start = description.indexOf(OUTLOOK_MARKER);
-  if (start < 0) return null;
+async function getAccessToken(): Promise<string | null> {
+  if (!isConfigured()) return null;
 
-  const json = description.slice(start + OUTLOOK_MARKER.length).replace(/-->\s*$/, '').trim();
-  if (!json) return null;
+  const tenantId = getEnv('MICROSOFT_TENANT_ID')!;
+  const clientId = getEnv('MICROSOFT_CLIENT_ID')!;
+  const clientSecret = getEnv('MICROSOFT_CLIENT_SECRET')!;
 
-  try {
-    return JSON.parse(json) as OutlookEventIds;
-  } catch {
+  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('Microsoft token error:', await response.text());
     return null;
   }
+
+  const data = (await response.json()) as { access_token?: string };
+  return data.access_token ?? null;
 }
 
-function writeOutlookEventIds(
-  description: string | null | undefined,
-  eventIds?: OutlookEventIds | null,
-): string | null {
-  const clean = sanitiseDescription(description);
-
-  if (!eventIds || (!eventIds.mike && !eventIds.steven)) {
-    return clean;
-  }
-
-  return `${clean ?? ''}${OUTLOOK_MARKER}${JSON.stringify(eventIds)}-->`;
-}
-
-function serialiseTask<T extends { description?: string | null }>(task: T): T {
-  return { ...task, description: sanitiseDescription(task.description) };
-}
-
-function serialiseTasks<T extends { description?: string | null }>(tasks: T[]): T[] {
-  return tasks.map((task) => serialiseTask(task));
-}
-
-async function removeCallbackOutlookForClient(clientId: string): Promise<void> {
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
-  if (!client) return;
-
-  const metadata = (client.metadataJson ?? {}) as any;
-  const callback = (metadata.callback ?? {}) as any;
-  const eventIds = callback.outlookEventIds as OutlookEventIds | undefined;
-
-  if (!eventIds?.mike && !eventIds?.steven) return;
-
-  await deleteOutlookCallbackEvents(eventIds);
-
-  await prisma.client.update({
-    where: { id: client.id },
-    data: {
-      metadataJson: {
-        ...metadata,
-        callback: {
-          ...callback,
-          outlookEventIds: {},
-        },
-      },
+async function graphRequest(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${GRAPH_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
     },
   });
 }
 
-router.get('/open', async (_req, res) => {
-  const tasks = await prisma.task.findMany({
-    where: { status: 'OPEN' },
-    include: { client: true },
-    orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+function addMinutes(time: string, minutesToAdd: number): string {
+  const hours = Number(time.slice(0, 2));
+  const minutes = Number(time.slice(3, 5));
+  const total = hours * 60 + minutes + minutesToAdd;
+  const newHours = Math.floor((total % (24 * 60)) / 60);
+  const newMinutes = total % 60;
+  return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+}
+
+export function londonPartsFromDate(date: Date): { date: string; time: string } {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
   });
 
-  res.json(serialiseTasks(tasks));
-});
+  const parts = formatter.formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
 
-router.get('/client/:clientId', async (req, res) => {
-  const { clientId } = req.params;
-
-  const tasks = await prisma.task.findMany({
-    where: { clientId },
-    orderBy: [{ status: 'asc' }, { dueAt: 'asc' }, { createdAt: 'desc' }],
-  });
-
-  res.json(serialiseTasks(tasks));
-});
-
-router.post('/', async (req, res) => {
-  const { clientId, title, description, dueAt, priority } = req.body as {
-    clientId?: string;
-    title?: string;
-    description?: string | null;
-    dueAt?: string | null;
-    priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  return {
+    date: `${part('year')}-${part('month')}-${part('day')}`,
+    time: `${part('hour')}:${part('minute')}`,
   };
+}
 
-  if (!clientId || !title?.trim()) {
-    return res.status(400).json({ message: 'clientId and title are required.' });
-  }
+function buildClientLabel(client: ClientSummary): string {
+  const ref = client.reference ? `#${client.reference} - ` : '';
+  return `${ref}${client.firstName} ${client.lastName}`.trim();
+}
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
-  if (!client) return res.status(404).json({ message: 'Client not found.' });
+function taskPayload(args: TaskArgs) {
+  const date = args.dueAt ? new Date(args.dueAt) : new Date();
+  const { date: dueDate, time } = londonPartsFromDate(date);
+  const subject = `TMAC Task - ${args.title} - ${buildClientLabel(args.client)}`;
+  const bodyLines = [
+    `Client: ${buildClientLabel(args.client)}`,
+    args.description ? `Task notes: ${args.description}` : '',
+    args.client.email ? `Email: ${args.client.email}` : '',
+    args.client.mobile ? `Mobile: ${args.client.mobile}` : '',
+  ].filter(Boolean);
 
-  let task = await prisma.task.create({
-    data: {
-      clientId,
-      title: title.trim(),
-      description: sanitiseDescription(description),
-      dueAt: dueAt ? new Date(dueAt) : null,
-      priority: priority || 'MEDIUM',
-      status: 'OPEN',
-      outcome: null,
-    },
-  });
+  return {
+    subject,
+    body: { contentType: 'Text', content: bodyLines.join('\n') },
+    start: { dateTime: `${dueDate}T${time}:00`, timeZone: 'Europe/London' },
+    end: { dateTime: `${dueDate}T${addMinutes(time, 30)}:00`, timeZone: 'Europe/London' },
+    location: { displayName: 'TMAC Task' },
+    categories: ['TMAC CRM'],
+  };
+}
 
-  if (dueAt && !isCallbackTaskTitle(task.title)) {
-    const eventIds = await upsertOutlookTaskEvents({
-      client,
-      title: task.title,
-      description: task.description,
-      dueAt,
+function callbackPayload(args: CallbackArgs) {
+  const callbackDate = args.callbackDate ?? londonPartsFromDate(new Date()).date;
+  const callbackTime = args.callbackTime ?? '10:00';
+  const subject = `TMAC Callback - ${buildClientLabel(args.client)}`;
+  const bodyLines = [
+    `Client: ${buildClientLabel(args.client)}`,
+    args.client.email ? `Email: ${args.client.email}` : '',
+    args.client.mobile ? `Mobile: ${args.client.mobile}` : '',
+    args.notes ? `Notes: ${args.notes}` : '',
+  ].filter(Boolean);
+
+  return {
+    subject,
+    body: { contentType: 'Text', content: bodyLines.join('\n') },
+    start: { dateTime: `${callbackDate}T${callbackTime}:00`, timeZone: 'Europe/London' },
+    end: { dateTime: `${callbackDate}T${addMinutes(callbackTime, 30)}:00`, timeZone: 'Europe/London' },
+    location: { displayName: 'TMAC Callback' },
+    categories: ['TMAC CRM'],
+  };
+}
+
+async function upsertEvents(
+  payload: Record<string, unknown>,
+  existingEventIds?: OutlookEventIds | null,
+): Promise<OutlookEventIds | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  const result: OutlookEventIds = {};
+
+  for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<[keyof OutlookEventIds, string]>) {
+    const existingId = existingEventIds?.[key];
+    let response: Response;
+
+    if (existingId) {
+      response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${existingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        result[key] = existingId;
+        continue;
+      }
+    }
+
+    response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
 
-    if (eventIds) {
-      task = await prisma.task.update({
-        where: { id: task.id },
-        data: { description: writeOutlookEventIds(task.description, eventIds) },
-      });
+    if (!response.ok) {
+      console.error(`Outlook event create failed for ${mailbox}:`, await response.text());
+      continue;
     }
+
+    const data = (await response.json()) as { id?: string };
+    if (data.id) result[key] = data.id;
   }
 
-  res.status(201).json(serialiseTask(task));
-});
+  return result;
+}
 
-router.patch('/:id', async (req, res) => {
-  const { id } = req.params;
-  const { status, outcome, title, description, dueAt, priority } = req.body as {
-    status?: 'OPEN' | 'DONE';
-    outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
-    title?: string;
-    description?: string | null;
-    dueAt?: string | null;
-    priority?: 'LOW' | 'MEDIUM' | 'HIGH';
-  };
+async function deleteEvents(eventIds?: OutlookEventIds | null): Promise<void> {
+  if (!eventIds) return;
 
-  const existing = await prisma.task.findUnique({ where: { id } });
-  if (!existing) return res.status(404).json({ message: 'Task not found.' });
+  const token = await getAccessToken();
+  if (!token) return;
 
-  const client = existing.clientId
-    ? await prisma.client.findUnique({ where: { id: existing.clientId } })
-    : null;
+  for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<[keyof OutlookEventIds, string]>) {
+    const eventId = eventIds[key];
+    if (!eventId) continue;
 
-  const nextTitle = title?.trim() || existing.title;
-  const cleanIncomingDescription = description !== undefined
-    ? sanitiseDescription(description)
-    : sanitiseDescription(existing.description);
-  const nextDueAt = dueAt !== undefined
-    ? dueAt
-    : existing.dueAt
-      ? existing.dueAt.toISOString()
-      : null;
-  const nextStatus = status ?? existing.status;
-  const nextOutcome = outcome === undefined ? existing.outcome : outcome;
+    const response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${eventId}`, {
+      method: 'DELETE',
+    });
 
-  const shouldCloseTask =
-    nextStatus === 'DONE' &&
-    ['COMPLETED', 'NO_ANSWER', 'RESCHEDULED', 'CANCELLED'].includes(nextOutcome || '');
-
-  let descriptionToStore: string | null = cleanIncomingDescription;
-
-  if (client && existing.clientId && isCallbackTaskTitle(existing.title)) {
-    if (shouldCloseTask && ['NO_ANSWER', 'CANCELLED', 'COMPLETED'].includes(nextOutcome || '')) {
-      await removeCallbackOutlookForClient(existing.clientId);
-    } else if (nextStatus === 'OPEN' && nextDueAt) {
-      const metadata = (client.metadataJson ?? {}) as any;
-      const callback = (metadata.callback ?? {}) as any;
-      const londonParts = londonPartsFromDate(new Date(nextDueAt));
-      const eventIds = await upsertOutlookCallbackEvents({
-        client,
-        callbackDate: londonParts.date,
-        callbackTime: londonParts.time,
-        notes: cleanIncomingDescription,
-        existingEventIds: callback.outlookEventIds,
-      });
-
-      await prisma.client.update({
-        where: { id: client.id },
-        data: {
-          metadataJson: {
-            ...metadata,
-            callback: {
-              ...callback,
-              date: londonParts.date,
-              time: londonParts.time,
-              notes: cleanIncomingDescription ?? callback.notes ?? '',
-              outlookEventIds: eventIds ?? callback.outlookEventIds ?? {},
-            },
-          },
-        },
-      });
-    }
-  } else {
-    const existingEventIds = readOutlookEventIds(existing.description);
-
-    if (shouldCloseTask) {
-      if (existingEventIds) await deleteOutlookTaskEvents(existingEventIds);
-      descriptionToStore = cleanIncomingDescription;
-    } else if (client && nextStatus === 'OPEN' && nextDueAt) {
-      const eventIds = await upsertOutlookTaskEvents({
-        client,
-        title: nextTitle,
-        description: cleanIncomingDescription,
-        dueAt: nextDueAt,
-        existingEventIds,
-      });
-      descriptionToStore = writeOutlookEventIds(cleanIncomingDescription, eventIds);
-    } else {
-      if (existingEventIds && !nextDueAt) await deleteOutlookTaskEvents(existingEventIds);
-      descriptionToStore = cleanIncomingDescription;
+    if (!response.ok && response.status !== 404) {
+      console.error(`Outlook event delete failed for ${mailbox}:`, await response.text());
     }
   }
+}
 
-  const task = await prisma.task.update({
-    where: { id },
-    data: {
-      title: nextTitle,
-      description: descriptionToStore,
-      dueAt: nextDueAt ? new Date(nextDueAt) : null,
-      priority: priority ?? existing.priority,
-      status: nextStatus,
-      outcome: nextOutcome,
-    },
-  });
+export async function upsertOutlookTaskEvents(args: TaskArgs): Promise<OutlookEventIds | null> {
+  if (!args.dueAt) return null;
+  return upsertEvents(taskPayload(args), args.existingEventIds);
+}
 
-  res.json(serialiseTask(task));
-});
+export async function deleteOutlookTaskEvents(eventIds?: OutlookEventIds | null): Promise<void> {
+  await deleteEvents(eventIds);
+}
 
-export default router;
+export async function upsertOutlookCallbackEvents(args: CallbackArgs): Promise<OutlookEventIds | null> {
+  return upsertEvents(callbackPayload(args), args.existingEventIds);
+}
+
+export async function deleteOutlookCallbackEvents(eventIds?: OutlookEventIds | null): Promise<void> {
+  await deleteEvents(eventIds);
+}
