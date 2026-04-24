@@ -19,6 +19,14 @@ type ClientSummary = {
   mobile?: string | null;
 };
 
+type TaskSummary = {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueAt?: Date | string | null;
+  priority?: string | null;
+};
+
 type CallbackArgs = {
   client: ClientSummary;
   callbackDate?: string;
@@ -29,9 +37,11 @@ type CallbackArgs = {
 
 type TaskArgs = {
   client: ClientSummary;
-  title: string;
+  task?: TaskSummary;
+  title?: string;
   description?: string | null;
-  dueAt?: string | Date | null;
+  dueAt?: Date | string | null;
+  priority?: string | null;
   existingEventIds?: OutlookEventIds | null;
 };
 
@@ -48,7 +58,10 @@ function isConfigured(): boolean {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  if (!isConfigured()) return null;
+  if (!isConfigured()) {
+    console.warn('Outlook sync skipped: Microsoft environment variables are not configured.');
+    return null;
+  }
 
   const tenantId = getEnv('MICROSOFT_TENANT_ID')!;
   const clientId = getEnv('MICROSOFT_CLIENT_ID')!;
@@ -89,12 +102,16 @@ function addMinutes(time: string, minutesToAdd: number): string {
   const hours = Number(time.slice(0, 2));
   const minutes = Number(time.slice(3, 5));
   const total = hours * 60 + minutes + minutesToAdd;
-  const newHours = Math.floor((total % (24 * 60)) / 60);
-  const newMinutes = total % 60;
+  const day = 24 * 60;
+  const wrapped = ((total % day) + day) % day;
+  const newHours = Math.floor(wrapped / 60);
+  const newMinutes = wrapped % 60;
   return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
 }
 
-export function londonPartsFromDate(date: Date): { date: string; time: string } {
+export function londonPartsFromDate(value: Date | string): { date: string; time: string } {
+  const date = value instanceof Date ? value : new Date(value);
+
   const formatter = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London',
     year: 'numeric',
@@ -114,18 +131,62 @@ export function londonPartsFromDate(date: Date): { date: string; time: string } 
   };
 }
 
+function londonOffsetMinutesForUtc(date: Date): number {
+  const london = londonPartsFromDate(date);
+  const londonAsUtc = Date.UTC(
+    Number(london.date.slice(0, 4)),
+    Number(london.date.slice(5, 7)) - 1,
+    Number(london.date.slice(8, 10)),
+    Number(london.time.slice(0, 2)),
+    Number(london.time.slice(3, 5)),
+  );
+
+  return Math.round((londonAsUtc - date.getTime()) / 60000);
+}
+
+export function londonLocalToUtcDate(date: string, time: string): Date {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7)) - 1;
+  const day = Number(date.slice(8, 10));
+  const hour = Number(time.slice(0, 2));
+  const minute = Number(time.slice(3, 5));
+
+  let utc = new Date(Date.UTC(year, month, day, hour, minute, 0, 0));
+  let offset = londonOffsetMinutesForUtc(utc);
+  utc = new Date(Date.UTC(year, month, day, hour, minute - offset, 0, 0));
+
+  // Re-check once because the first estimate can cross a DST boundary.
+  offset = londonOffsetMinutesForUtc(utc);
+  return new Date(Date.UTC(year, month, day, hour, minute - offset, 0, 0));
+}
+
 function buildClientLabel(client: ClientSummary): string {
   const ref = client.reference ? `#${client.reference} - ` : '';
   return `${ref}${client.firstName} ${client.lastName}`.trim();
 }
 
+function normaliseTaskArgs(args: TaskArgs): Required<Pick<TaskArgs, 'title'>> & {
+  description?: string | null;
+  dueAt?: Date | string | null;
+  priority?: string | null;
+} {
+  return {
+    title: args.title ?? args.task?.title ?? 'Task',
+    description: args.description ?? args.task?.description ?? null,
+    dueAt: args.dueAt ?? args.task?.dueAt ?? null,
+    priority: args.priority ?? args.task?.priority ?? null,
+  };
+}
+
 function taskPayload(args: TaskArgs) {
-  const date = args.dueAt ? new Date(args.dueAt) : new Date();
-  const { date: dueDate, time } = londonPartsFromDate(date);
-  const subject = `TMAC Task - ${args.title} - ${buildClientLabel(args.client)}`;
+  const task = normaliseTaskArgs(args);
+  const dueAt = task.dueAt ? new Date(task.dueAt) : new Date();
+  const { date: dueDate, time } = londonPartsFromDate(dueAt);
+  const subject = `TMAC Task - ${task.title} - ${buildClientLabel(args.client)}`;
   const bodyLines = [
     `Client: ${buildClientLabel(args.client)}`,
-    args.description ? `Task notes: ${args.description}` : '',
+    task.description ? `Task notes: ${task.description}` : '',
+    task.priority ? `Priority: ${task.priority}` : '',
     args.client.email ? `Email: ${args.client.email}` : '',
     args.client.mobile ? `Mobile: ${args.client.mobile}` : '',
   ].filter(Boolean);
@@ -166,7 +227,7 @@ async function upsertEvents(
   existingEventIds?: OutlookEventIds | null,
 ): Promise<OutlookEventIds | null> {
   const token = await getAccessToken();
-  if (!token) return null;
+  if (!token) return existingEventIds ?? null;
 
   const result: OutlookEventIds = {};
 
@@ -183,6 +244,10 @@ async function upsertEvents(
       if (response.ok) {
         result[key] = existingId;
         continue;
+      }
+
+      if (response.status !== 404) {
+        console.error(`Outlook event update failed for ${mailbox}:`, await response.text());
       }
     }
 
@@ -224,7 +289,8 @@ async function deleteEvents(eventIds?: OutlookEventIds | null): Promise<void> {
 }
 
 export async function upsertOutlookTaskEvents(args: TaskArgs): Promise<OutlookEventIds | null> {
-  if (!args.dueAt) return null;
+  const task = normaliseTaskArgs(args);
+  if (!task.dueAt) return args.existingEventIds ?? null;
   return upsertEvents(taskPayload(args), args.existingEventIds);
 }
 
