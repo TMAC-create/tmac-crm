@@ -10,6 +10,7 @@ import clientDocumentsRouter from './routes/clientDocuments.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { healthRouter } from './routes/health.js';
 import taskRoutes from './routes/tasks.js';
+import { templatesRouter } from './routes/templates.js';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/clients', clientsRouter);
 app.use('/clients', clientDocumentsRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/tasks', taskRoutes);
+app.use('/templates', templatesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'TMAC CRM API running' });
