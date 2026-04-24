@@ -1,5 +1,7 @@
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
-const MAILBOXES = {
+import type { Client, Task } from '@prisma/client';
+
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
+const OUTLOOK_MAILBOXES = {
   mike: 'mike@themoneyadvicecentre.com',
   steven: 'steven@themoneyadvicecentre.com',
 } as const;
@@ -9,282 +11,308 @@ export type OutlookEventIds = {
   steven?: string;
 };
 
-type ClientSummary = {
-  id: string;
-  reference?: number | null;
-  firstName: string;
-  lastName: string;
-  email?: string | null;
-  mobile?: string | null;
-};
-
-type CallbackArgs = {
-  client: ClientSummary;
-  callbackDate?: string;
-  callbackTime?: string;
+type CallbackInput = {
+  client: Client;
+  callbackDate: string;
+  callbackTime: string;
   notes?: string;
-  existingEventIds?: OutlookEventIds | null;
+  existingEventIds?: OutlookEventIds;
 };
 
-type TaskArgs = {
-  client: ClientSummary;
-  title: string;
-  description?: string | null;
-  dueAt?: string | Date | null;
-  existingEventIds?: OutlookEventIds | null;
+type TaskInput = {
+  client: Client;
+  task: Task;
+  existingEventIds?: OutlookEventIds;
 };
 
-function getEnv(name: string): string | undefined {
-  return process.env[name]?.trim();
+type LondonParts = {
+  date: string;
+  time: string;
+};
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
 }
 
-function isConfigured(): boolean {
-  return Boolean(
-    getEnv('MICROSOFT_TENANT_ID') &&
-      getEnv('MICROSOFT_CLIENT_ID') &&
-      getEnv('MICROSOFT_CLIENT_SECRET'),
-  );
-}
+async function getAccessToken(): Promise<string> {
+  const tenantId = requireEnv('MICROSOFT_TENANT_ID');
+  const clientId = requireEnv('MICROSOFT_CLIENT_ID');
+  const clientSecret = requireEnv('MICROSOFT_CLIENT_SECRET');
 
-async function getAccessToken(): Promise<string | null> {
-  if (!isConfigured()) return null;
-
-  const tenantId = getEnv('MICROSOFT_TENANT_ID')!;
-  const clientId = getEnv('MICROSOFT_CLIENT_ID')!;
-  const clientSecret = getEnv('MICROSOFT_CLIENT_SECRET')!;
-
-  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-    grant_type: 'client_credentials',
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+  const response = await fetch(
+    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials',
+      }),
     },
-    body,
-  });
+  );
 
   if (!response.ok) {
-    console.error('Microsoft token error:', await response.text());
+    const text = await response.text();
+    throw new Error(`Microsoft token request failed: ${response.status} ${text}`);
+  }
+
+  const json = (await response.json()) as { access_token?: string };
+  if (!json.access_token) {
+    throw new Error('Microsoft token response did not include access_token.');
+  }
+
+  return json.access_token;
+}
+
+function lastSunday(year: number, monthIndex: number): number {
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
+  return lastDay.getUTCDate() - lastDay.getUTCDay();
+}
+
+function isLondonDstLocal(datePart: string, timePart: string): boolean {
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(5, 7));
+  const day = Number(datePart.slice(8, 10));
+  const hour = Number(timePart.slice(0, 2));
+
+  if (month < 3 || month > 10) return false;
+  if (month > 3 && month < 10) return true;
+
+  const marchSwitchDay = lastSunday(year, 2);
+  const octoberSwitchDay = lastSunday(year, 9);
+
+  if (month === 3) {
+    if (day > marchSwitchDay) return true;
+    if (day < marchSwitchDay) return false;
+    return hour >= 2;
+  }
+
+  if (month === 10) {
+    if (day < octoberSwitchDay) return true;
+    if (day > octoberSwitchDay) return false;
+    return hour < 2;
+  }
+
+  return false;
+}
+
+export function londonLocalToUtcDate(datePart?: string, timePart?: string): Date | null {
+  if (!datePart || !timePart) return null;
+
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(5, 7));
+  const day = Number(datePart.slice(8, 10));
+  const hour = Number(timePart.slice(0, 2));
+  const minute = Number(timePart.slice(3, 5));
+
+  if (
+    [year, month, day, hour, minute].some((v) => Number.isNaN(v))
+  ) {
     return null;
   }
 
-  const data = (await response.json()) as { access_token?: string };
-  return data.access_token ?? null;
+  const dst = isLondonDstLocal(datePart, timePart);
+  const utcHour = hour - (dst ? 1 : 0);
+
+  return new Date(Date.UTC(year, month - 1, day, utcHour, minute, 0, 0));
 }
 
-async function graphRequest(
-  token: string,
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  return fetch(`${GRAPH_BASE}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-}
-
-function addMinutes(time: string, minutesToAdd: number): string {
-  const hours = Number(time.slice(0, 2));
-  const minutes = Number(time.slice(3, 5));
-  const total = hours * 60 + minutes + minutesToAdd;
-  const newHours = Math.floor((total % (24 * 60)) / 60);
-  const newMinutes = total % 60;
-  return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
-}
-
-export function londonPartsFromDate(date: Date): { date: string; time: string } {
-  const formatter = new Intl.DateTimeFormat('en-GB', {
+export function londonPartsFromDate(date: Date): LondonParts {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hourCycle: 'h23',
-  });
+    hour12: false,
+  }).formatToParts(date);
 
-  const parts = formatter.formatToParts(date);
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-
   return {
     date: `${part('year')}-${part('month')}-${part('day')}`,
     time: `${part('hour')}:${part('minute')}`,
   };
 }
 
-function buildClientLabel(client: ClientSummary): string {
-  const ref = client.reference ? `#${client.reference} - ` : '';
-  return `${ref}${client.firstName} ${client.lastName}`.trim();
+function buildSubject(client: Client, title: string): string {
+  return `TMAC - ${title} - ${client.reference ?? '-'} - ${client.firstName} ${client.lastName}`;
 }
 
-function taskPayload(args: TaskArgs) {
-  const date = args.dueAt ? new Date(args.dueAt) : new Date();
-  const { date: dueDate, time } = londonPartsFromDate(date);
-  const subject = `TMAC Task - ${args.title} - ${buildClientLabel(args.client)}`;
-  const bodyLines = [
-    `Client: ${buildClientLabel(args.client)}`,
-    args.description ? `Task notes: ${args.description}` : '',
-    args.client.email ? `Email: ${args.client.email}` : '',
-    args.client.mobile ? `Mobile: ${args.client.mobile}` : '',
+function buildBody(client: Client, title: string, notes?: string): string {
+  const lines = [
+    `Task: ${title}`,
+    `Client: ${client.firstName} ${client.lastName}`,
+    `Reference: ${client.reference ?? '-'}`,
+    client.mobile ? `Mobile: ${client.mobile}` : '',
+    client.email ? `Email: ${client.email}` : '',
+    notes ? `Notes: ${notes}` : '',
   ].filter(Boolean);
 
+  return lines.join('\n');
+}
+
+function buildGraphDateTimeRange(datePart: string, timePart: string) {
+  const [hour, minute] = timePart.split(':').map(Number);
+  const endMinuteTotal = hour * 60 + minute + 30;
+  const endHour = Math.floor((endMinuteTotal % (24 * 60)) / 60);
+  const endMinute = endMinuteTotal % 60;
+
   return {
-    subject,
-    body: {
-      contentType: 'Text',
-      content: bodyLines.join('\n'),
-    },
-    start: {
-      dateTime: `${dueDate}T${time}:00`,
-      timeZone: 'Europe/London',
-    },
-    end: {
-      dateTime: `${dueDate}T${addMinutes(time, 30)}:00`,
-      timeZone: 'Europe/London',
-    },
-    location: {
-      displayName: 'TMAC Task',
-    },
-    categories: ['TMAC CRM'],
+    startLocal: `${datePart}T${timePart}:00`,
+    endLocal: `${datePart}T${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`,
   };
 }
 
-function callbackPayload(args: CallbackArgs) {
-  const callbackDate = args.callbackDate ?? londonPartsFromDate(new Date()).date;
-  const callbackTime = args.callbackTime ?? '10:00';
-  const subject = `TMAC Callback - ${buildClientLabel(args.client)}`;
+async function createOrUpdateEventForMailbox(
+  mailbox: string,
+  token: string,
+  client: Client,
+  title: string,
+  datePart: string,
+  timePart: string,
+  notes?: string,
+  existingEventId?: string,
+): Promise<string | undefined> {
+  const { startLocal, endLocal } = buildGraphDateTimeRange(datePart, timePart);
 
-  const bodyLines = [
-    `Client: ${buildClientLabel(args.client)}`,
-    args.client.email ? `Email: ${args.client.email}` : '',
-    args.client.mobile ? `Mobile: ${args.client.mobile}` : '',
-    args.notes ? `Notes: ${args.notes}` : '',
-  ].filter(Boolean);
-
-  return {
-    subject,
+  const payload = {
+    subject: buildSubject(client, title),
     body: {
       contentType: 'Text',
-      content: bodyLines.join('\n'),
+      content: buildBody(client, title, notes),
     },
     start: {
-      dateTime: `${callbackDate}T${callbackTime}:00`,
+      dateTime: startLocal,
       timeZone: 'Europe/London',
     },
     end: {
-      dateTime: `${callbackDate}T${addMinutes(callbackTime, 30)}:00`,
+      dateTime: endLocal,
       timeZone: 'Europe/London',
     },
-    location: {
-      displayName: 'TMAC Callback',
-    },
-    categories: ['TMAC CRM'],
   };
-}
 
-async function upsertEvents(
-  payload: Record<string, unknown>,
-  existingEventIds?: OutlookEventIds | null,
-): Promise<OutlookEventIds | null> {
-  const token = await getAccessToken();
-  if (!token) return null;
+  const url = existingEventId
+    ? `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/events/${existingEventId}`
+    : `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/events`;
 
-  const result: OutlookEventIds = {};
+  const response = await fetch(url, {
+    method: existingEventId ? 'PATCH' : 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
-  for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<
-    [keyof OutlookEventIds, string]
-  >) {
-    const existingId = existingEventIds?.[key];
-    let response: Response;
-
-    if (existingId) {
-      response = await graphRequest(
-        token,
-        `/users/${encodeURIComponent(mailbox)}/events/${existingId}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (response.ok) {
-        result[key] = existingId;
-        continue;
-      }
-    }
-
-    response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      console.error(`Outlook event create failed for ${mailbox}:`, await response.text());
-      continue;
-    }
-
-    const data = (await response.json()) as { id?: string };
-    if (data.id) {
-      result[key] = data.id;
-    }
-  }
-
-  return result;
-}
-
-async function deleteEvents(eventIds?: OutlookEventIds | null): Promise<void> {
-  if (!eventIds) return;
-
-  const token = await getAccessToken();
-  if (!token) return;
-
-  for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<
-    [keyof OutlookEventIds, string]
-  >) {
-    const eventId = eventIds[key];
-    if (!eventId) continue;
-
-    const response = await graphRequest(
-      token,
-      `/users/${encodeURIComponent(mailbox)}/events/${eventId}`,
-      { method: 'DELETE' },
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `Microsoft Graph event ${existingEventId ? 'update' : 'create'} failed for ${mailbox}: ${response.status} ${text}`,
     );
+  }
 
-    if (!response.ok && response.status !== 404) {
-      console.error(`Outlook event delete failed for ${mailbox}:`, await response.text());
-    }
+  if (existingEventId) return existingEventId;
+
+  const json = (await response.json()) as { id?: string };
+  return json.id;
+}
+
+async function deleteEventForMailbox(mailbox: string, token: string, eventId?: string): Promise<void> {
+  if (!eventId) return;
+
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/events/${eventId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (response.status === 404) return;
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Microsoft Graph delete failed for ${mailbox}: ${response.status} ${text}`);
   }
 }
 
-export async function upsertOutlookTaskEvents(args: TaskArgs): Promise<OutlookEventIds | null> {
-  if (!args.dueAt) return null;
-  return upsertEvents(taskPayload(args), args.existingEventIds);
+async function upsertForTitle(
+  client: Client,
+  title: string,
+  date: string,
+  time: string,
+  notes?: string,
+  existingEventIds?: OutlookEventIds,
+): Promise<OutlookEventIds> {
+  const token = await getAccessToken();
+
+  const mike = await createOrUpdateEventForMailbox(
+    OUTLOOK_MAILBOXES.mike,
+    token,
+    client,
+    title,
+    date,
+    time,
+    notes,
+    existingEventIds?.mike,
+  );
+
+  const steven = await createOrUpdateEventForMailbox(
+    OUTLOOK_MAILBOXES.steven,
+    token,
+    client,
+    title,
+    date,
+    time,
+    notes,
+    existingEventIds?.steven,
+  );
+
+  return { mike, steven };
 }
 
-export async function deleteOutlookTaskEvents(
-  eventIds?: OutlookEventIds | null,
-): Promise<void> {
-  await deleteEvents(eventIds);
+export async function upsertOutlookCallbackEvents(input: CallbackInput): Promise<OutlookEventIds> {
+  return upsertForTitle(
+    input.client,
+    'Client callback booked',
+    input.callbackDate,
+    input.callbackTime,
+    input.notes,
+    input.existingEventIds,
+  );
 }
 
-export async function upsertOutlookCallbackEvents(
-  args: CallbackArgs,
-): Promise<OutlookEventIds | null> {
-  return upsertEvents(callbackPayload(args), args.existingEventIds);
+export async function upsertOutlookTaskEvents(input: TaskInput): Promise<OutlookEventIds | null> {
+  if (!input.task.dueAt) return null;
+
+  const london = londonPartsFromDate(input.task.dueAt);
+  return upsertForTitle(
+    input.client,
+    input.task.title,
+    london.date,
+    london.time,
+    input.task.description ?? undefined,
+    input.existingEventIds,
+  );
 }
 
-export async function deleteOutlookCallbackEvents(
-  eventIds?: OutlookEventIds | null,
-): Promise<void> {
-  await deleteEvents(eventIds);
+export async function deleteOutlookCallbackEvents(eventIds?: OutlookEventIds): Promise<void> {
+  if (!eventIds?.mike && !eventIds?.steven) return;
+
+  const token = await getAccessToken();
+  await deleteEventForMailbox(OUTLOOK_MAILBOXES.mike, token, eventIds?.mike);
+  await deleteEventForMailbox(OUTLOOK_MAILBOXES.steven, token, eventIds?.steven);
+}
+
+export async function deleteOutlookTaskEvents(eventIds?: OutlookEventIds): Promise<void> {
+  return deleteOutlookCallbackEvents(eventIds);
 }
