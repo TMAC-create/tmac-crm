@@ -2015,51 +2015,206 @@ dd { margin: 0; font-weight: 600; }
   }
 }
 
-
-/* Manual task modal */
-.modal {
-  width: min(100%, 640px);
+/* Admin templates */
+.admin-hero-header {
+  margin-bottom: 18px;
 }
 
-.modal-form textarea,
-.modal-form input,
-.modal-form select {
-  width: 100%;
-}
-
-.modal-form .grid-2 {
-  margin-bottom: 0;
-}
-
-.task-card .secondary.small-button {
-  background: #eef2ff;
-  color: #4f46e5;
-}
-
-/* Global task board */
-.global-task-board {
+.admin-overview-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
-.global-task-section {
-  padding: 18px;
+.admin-overview-card {
+  padding: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #faf9ff 100%);
 }
 
-.global-task-card {
-  cursor: default;
-}
-
-.global-task-client {
-  color: #4b3f99;
+.admin-overview-card span {
+  display: block;
+  color: var(--muted);
   font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.admin-overview-card strong {
+  display: block;
+  font-size: 34px;
+  color: #0f172a;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.admin-overview-card small {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.admin-template-panel,
+.admin-collapsible-panel {
+  margin-bottom: 18px;
+}
+
+.admin-section-heading {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.admin-section-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.admin-template-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-template-layout {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.template-editor-card,
+.template-list-card {
+  height: 100%;
+}
+
+.template-body-input {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  font: inherit;
+  background: #fff;
+}
+
+.template-active-toggle {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.template-active-toggle input {
+  width: auto;
+}
+
+.template-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.template-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.template-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.template-card-top strong {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.template-card-top span:not(.template-status) {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.template-status {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 700;
-  margin-bottom: 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.template-status.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.template-status.inactive {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.template-subject {
+  margin: 0 0 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.template-preview {
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin-bottom: 14px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.admin-collapse-button {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  color: #0f172a;
+  text-align: left;
+}
+
+.admin-collapse-button strong,
+.admin-collapse-button small {
+  display: block;
+}
+
+.admin-collapse-button small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.admin-creditor-content {
+  margin-top: 18px;
 }
 
 @media (max-width: 1100px) {
-  .global-task-board {
+  .admin-overview-grid,
+  .admin-template-layout {
     grid-template-columns: 1fr;
+  }
+
+  .admin-section-heading {
+    flex-direction: column;
   }
 }
