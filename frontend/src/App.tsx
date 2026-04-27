@@ -50,6 +50,37 @@ const emptyManualTaskForm: ManualTaskForm = {
   time: '',
   priority: 'MEDIUM',
 };
+
+type TemplateType = 'SMS' | 'EMAIL';
+
+type MessageTemplate = {
+  id: string;
+  name: string;
+  type: TemplateType;
+  subject?: string | null;
+  body: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type TemplateForm = {
+  name: string;
+  type: TemplateType;
+  subject: string;
+  body: string;
+  active: boolean;
+};
+
+const emptyTemplateForm: TemplateForm = {
+  name: '',
+  type: 'SMS',
+  subject: '',
+  body: '',
+  active: true,
+};
+
+type AdminSection = 'templates' | 'creditors' | null;
 type DebtItem = {
   id: string;
   creditorName: string;
@@ -384,6 +415,11 @@ const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
 const [globalTasks, setGlobalTasks] = useState<TaskItem[]>([]);
 const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
+const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+const [templateForm, setTemplateForm] = useState<TemplateForm>(emptyTemplateForm);
+const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+const [templateFilter, setTemplateFilter] = useState<TemplateType>('SMS');
+const [openAdminSection, setOpenAdminSection] = useState<AdminSection>(null);
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -393,6 +429,12 @@ useEffect(() => {
 useEffect(() => {
   if (isLoggedIn && view === 'tasks') {
     void loadGlobalTasks();
+  }
+}, [isLoggedIn, view]);
+
+useEffect(() => {
+  if (isLoggedIn && view === 'admin') {
+    void loadTemplates();
   }
 }, [isLoggedIn, view]);
   const filteredClients = useMemo(() => {
@@ -620,6 +662,7 @@ function maxLoanAtLtv(targetLtv: number) {
     const data = await response.json();
     setToken(data.token);
     await loadClients(data.token);
+    await loadTemplates(data.token);
     setView('dashboard');
   }
 
@@ -868,6 +911,101 @@ function updateDebtForm(field: keyof DebtItem, value: string) {
 
 function updateLoanForm(field: keyof LoanData, value: string) {
   setLoanForm((prev) => ({ ...prev, [field]: value }));
+}
+
+async function loadTemplates(activeToken = token) {
+  const response = await fetch(`${API_URL}/templates`, {
+    headers: { Authorization: `Bearer ${activeToken}` },
+  });
+
+  if (!response.ok) {
+    setError('Could not load templates.');
+    return;
+  }
+
+  const data = await response.json();
+  setTemplates(data);
+}
+
+function resetTemplateForm(type: TemplateType = templateFilter) {
+  setEditingTemplateId(null);
+  setTemplateForm({ ...emptyTemplateForm, type, subject: '' });
+}
+
+function editTemplate(template: MessageTemplate) {
+  setTemplateFilter(template.type);
+  setOpenAdminSection('templates');
+  setEditingTemplateId(template.id);
+  setTemplateForm({
+    name: template.name,
+    type: template.type,
+    subject: template.subject || '',
+    body: template.body,
+    active: template.active,
+  });
+}
+
+async function saveTemplate() {
+  if (!templateForm.name.trim()) {
+    setError('Please enter a template name.');
+    return;
+  }
+
+  if (!templateForm.body.trim()) {
+    setError('Please enter template content.');
+    return;
+  }
+
+  setError('');
+  setSuccess('');
+
+  const payload = {
+    name: templateForm.name.trim(),
+    type: templateForm.type,
+    subject: templateForm.type === 'EMAIL' ? templateForm.subject.trim() : '',
+    body: templateForm.body,
+    active: templateForm.active,
+  };
+
+  const response = await fetch(
+    editingTemplateId ? `${API_URL}/templates/${editingTemplateId}` : `${API_URL}/templates`,
+    {
+      method: editingTemplateId ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    setError('Could not save template.');
+    return;
+  }
+
+  await loadTemplates();
+  resetTemplateForm(templateForm.type);
+  setSuccess(editingTemplateId ? 'Template updated successfully.' : 'Template added successfully.');
+}
+
+async function deleteTemplate(id: string) {
+  const confirmed = window.confirm('Delete this template?');
+  if (!confirmed) return;
+
+  const response = await fetch(`${API_URL}/templates/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    setError('Could not delete template.');
+    return;
+  }
+
+  if (editingTemplateId === id) resetTemplateForm(templateFilter);
+  await loadTemplates();
+  setSuccess('Template deleted successfully.');
 }
 
 function resetDebtForm() {
@@ -3043,77 +3181,213 @@ function renderNotesTab() {
   const sortedCreditors = [...creditorMasterList].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
+  const smsTemplates = templates.filter((template) => template.type === 'SMS');
+  const emailTemplates = templates.filter((template) => template.type === 'EMAIL');
+  const visibleTemplates = templates.filter((template) => template.type === templateFilter);
+
+  const openSection = (section: Exclude<AdminSection, null>) => {
+    setOpenAdminSection((current) => (current === section ? null : section));
+  };
 
   return (
     <>
-      <header className="page-header premium-header">
+      <header className="page-header premium-header admin-hero-header">
         <div>
           <div className="eyebrow">Administration</div>
-          <h2>Creditor Master List</h2>
-          <p>Manage the creditor list used in the debts and creditors tab.</p>
+          <h2>Admin control centre</h2>
+          <p>Manage reusable templates, message content and creditor configuration.</p>
         </div>
       </header>
 
-      <section className="card premium-panel tab-panel">
-        <div className="detail-sections">
-          <section className="detail-section">
-            <div className="table-header">
-              <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
-              {editingCreditorId && (
-                <button className="secondary" onClick={resetCreditorAdminForm}>
-                  Cancel edit
-                </button>
-              )}
-            </div>
-
-            <div className="form-grid">
-              <div className="full-width">
-                <label>Creditor name</label>
-                <input
-                  value={creditorAdminName}
-                  onChange={(e) => setCreditorAdminName(e.target.value)}
-                  placeholder="Enter creditor name"
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button className="secondary" onClick={resetCreditorAdminForm}>
-                Clear
-              </button>
-              <button className="primary" onClick={addOrUpdateCreditor}>
-                {editingCreditorId ? 'Update creditor' : 'Add creditor'}
-              </button>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <div className="table-header">
-              <h4>Master creditor list</h4>
-              <span>{sortedCreditors.length} creditors</span>
-            </div>
-
-            <div className="creditor-admin-list">
-              {sortedCreditors.map((item) => (
-                <div key={item.id} className="creditor-admin-item">
-                  <strong>{item.name}</strong>
-                  <div className="debt-actions">
-                    <button className="secondary small-button" onClick={() => editCreditor(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="danger-button small-button"
-                      onClick={() => deleteCreditor(item.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+      <section className="admin-overview-grid">
+        <div className="card admin-overview-card">
+          <span>SMS Templates</span>
+          <strong>{smsTemplates.length}</strong>
+          <small>Short message templates for client updates and chasers.</small>
+        </div>
+        <div className="card admin-overview-card">
+          <span>Email Templates</span>
+          <strong>{emailTemplates.length}</strong>
+          <small>Email content with optional subject lines.</small>
+        </div>
+        <div className="card admin-overview-card">
+          <span>Creditors</span>
+          <strong>{sortedCreditors.length}</strong>
+          <small>Master creditor list used in debt entry.</small>
         </div>
       </section>
+
+      <section className="admin-module-grid">
+        <button className={`admin-module-card ${openAdminSection === 'templates' ? 'active' : ''}`} onClick={() => openSection('templates')}>
+          <div>
+            <span className="eyebrow dark">Message content</span>
+            <strong>Templates</strong>
+            <small>SMS and email templates used across the CRM.</small>
+          </div>
+          <span>{openAdminSection === 'templates' ? 'Close' : 'Open'}</span>
+        </button>
+
+        <button className={`admin-module-card ${openAdminSection === 'creditors' ? 'active' : ''}`} onClick={() => openSection('creditors')}>
+          <div>
+            <span className="eyebrow dark">Configuration</span>
+            <strong>Creditor Master List</strong>
+            <small>{sortedCreditors.length} creditors saved.</small>
+          </div>
+          <span>{openAdminSection === 'creditors' ? 'Close' : 'Open'}</span>
+        </button>
+      </section>
+
+      {openAdminSection === 'templates' && (
+        <section className="card premium-panel tab-panel admin-module-panel">
+          <div className="table-header admin-section-heading">
+            <div>
+              <h3>Templates</h3>
+              <p>Create and manage reusable SMS and email messages.</p>
+            </div>
+            <button className="secondary" onClick={() => setOpenAdminSection(null)}>Close section</button>
+          </div>
+
+          <div className="admin-template-tabs">
+            <button className={templateFilter === 'SMS' ? 'primary' : 'secondary'} onClick={() => { setTemplateFilter('SMS'); resetTemplateForm('SMS'); }}>
+              SMS Templates
+            </button>
+            <button className={templateFilter === 'EMAIL' ? 'primary' : 'secondary'} onClick={() => { setTemplateFilter('EMAIL'); resetTemplateForm('EMAIL'); }}>
+              Email Templates
+            </button>
+          </div>
+
+          <div className="admin-template-layout">
+            <section className="detail-section template-editor-card">
+              <div className="table-header">
+                <h4>{editingTemplateId ? 'Edit template' : `Add ${templateFilter === 'SMS' ? 'SMS' : 'email'} template`}</h4>
+                {editingTemplateId && <button className="secondary" onClick={() => resetTemplateForm(templateFilter)}>Cancel edit</button>}
+              </div>
+
+              <div className="form-grid">
+                <div>
+                  <label>Template type</label>
+                  <select value={templateForm.type} onChange={(e) => { const nextType = e.target.value as TemplateType; setTemplateFilter(nextType); setTemplateForm((prev) => ({ ...prev, type: nextType, subject: nextType === 'SMS' ? '' : prev.subject })); }}>
+                    <option value="SMS">SMS</option>
+                    <option value="EMAIL">Email</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label>Template name</label>
+                  <input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="e.g. Initial document chase" />
+                </div>
+
+                {templateForm.type === 'EMAIL' && (
+                  <div className="full-width">
+                    <label>Email subject</label>
+                    <input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} placeholder="e.g. Documents needed for your application" />
+                  </div>
+                )}
+
+                <div className="full-width">
+                  <label>{templateForm.type === 'SMS' ? 'SMS message' : 'Email body'}</label>
+                  <textarea className="template-body-input" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} placeholder={templateForm.type === 'SMS' ? 'Hi {{firstName}}, just checking in from TMAC...' : 'Hi {{firstName}},\n\nPlease send over...'} />
+                </div>
+
+                <label className="template-active-toggle full-width">
+                  <input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} />
+                  Active template
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button className="secondary" onClick={() => resetTemplateForm(templateFilter)}>Clear</button>
+                <button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Save template'}</button>
+              </div>
+            </section>
+
+            <section className="detail-section template-list-card">
+              <div className="table-header">
+                <div>
+                  <h4>{templateFilter === 'SMS' ? 'SMS templates' : 'Email templates'}</h4>
+                  <span>{visibleTemplates.length} saved</span>
+                </div>
+              </div>
+
+              <div className="template-card-list">
+                {visibleTemplates.length === 0 ? (
+                  <p className="muted-text">No templates saved yet.</p>
+                ) : (
+                  visibleTemplates.map((template) => (
+                    <div key={template.id} className="template-card">
+                      <div className="template-card-top">
+                        <div>
+                          <strong>{template.name}</strong>
+                          <span>{template.type === 'SMS' ? 'SMS' : 'Email'} template</span>
+                        </div>
+                        <span className={`template-status ${template.active ? 'active' : 'inactive'}`}>{template.active ? 'Active' : 'Inactive'}</span>
+                      </div>
+                      {template.subject && <p className="template-subject">Subject: {template.subject}</p>}
+                      <p className="template-preview">{template.body}</p>
+                      <div className="debt-actions">
+                        <button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button>
+                        <button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+      )}
+
+      {openAdminSection === 'creditors' && (
+        <section className="card premium-panel tab-panel admin-module-panel">
+          <div className="table-header admin-section-heading">
+            <div>
+              <h3>Creditor Master List</h3>
+              <p>Manage the creditor list used in the debts and creditors tab.</p>
+            </div>
+            <button className="secondary" onClick={() => setOpenAdminSection(null)}>Close section</button>
+          </div>
+
+          <div className="admin-template-layout">
+            <section className="detail-section template-editor-card">
+              <div className="table-header">
+                <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
+                {editingCreditorId && <button className="secondary" onClick={resetCreditorAdminForm}>Cancel edit</button>}
+              </div>
+
+              <div className="form-grid">
+                <div className="full-width">
+                  <label>Creditor name</label>
+                  <input value={creditorAdminName} onChange={(e) => setCreditorAdminName(e.target.value)} placeholder="Enter creditor name" />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button className="secondary" onClick={resetCreditorAdminForm}>Clear</button>
+                <button className="primary" onClick={addOrUpdateCreditor}>{editingCreditorId ? 'Update creditor' : 'Add creditor'}</button>
+              </div>
+            </section>
+
+            <section className="detail-section template-list-card">
+              <div className="table-header">
+                <h4>Saved creditors</h4>
+                <span>{sortedCreditors.length} creditors</span>
+              </div>
+
+              <div className="creditor-admin-list">
+                {sortedCreditors.map((item) => (
+                  <div key={item.id} className="creditor-admin-item">
+                    <strong>{item.name}</strong>
+                    <div className="debt-actions">
+                      <button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button>
+                      <button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </section>
+      )}
     </>
   );
  }
