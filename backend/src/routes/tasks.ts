@@ -64,17 +64,27 @@ function serialiseTasks<T extends { description?: string | null }>(tasks: T[]): 
   return tasks.map((task) => serialiseTask(task));
 }
 
-async function removeCallbackOutlookForClient(clientId: string): Promise<void> {
+async function removeCallbackOutlookForClient(
+  clientId: string,
+  taskDueAt?: Date | string | null,
+  notes?: string | null,
+): Promise<void> {
   const client = await prisma.client.findUnique({ where: { id: clientId } });
   if (!client) return;
 
   const metadata = (client.metadataJson ?? {}) as any;
   const callback = (metadata.callback ?? {}) as any;
   const eventIds = callback.outlookEventIds as OutlookEventIds | undefined;
+  const fallbackParts = taskDueAt ? londonPartsFromDate(new Date(taskDueAt)) : null;
+  const callbackDate = callback.date || fallbackParts?.date;
+  const callbackTime = callback.time || fallbackParts?.time;
 
-  if (!eventIds?.mike && !eventIds?.steven) return;
-
-  await deleteOutlookCallbackEvents(eventIds);
+  await deleteOutlookCallbackEvents(eventIds, {
+    client,
+    callbackDate,
+    callbackTime,
+    notes: notes ?? callback.notes ?? null,
+  });
 
   await prisma.client.update({
     where: { id: client.id },
@@ -196,7 +206,7 @@ router.patch('/:id', async (req, res) => {
 
   if (client && existing.clientId && isCallbackTaskTitle(existing.title)) {
     if (shouldCloseTask && ['NO_ANSWER', 'CANCELLED', 'COMPLETED'].includes(nextOutcome || '')) {
-      await removeCallbackOutlookForClient(existing.clientId);
+      await removeCallbackOutlookForClient(existing.clientId, existing.dueAt, cleanIncomingDescription);
     } else if (nextStatus === 'OPEN' && nextDueAt) {
       const metadata = (client.metadataJson ?? {}) as any;
       const callback = (metadata.callback ?? {}) as any;
@@ -229,7 +239,17 @@ router.patch('/:id', async (req, res) => {
     const existingEventIds = readOutlookEventIds(existing.description);
 
     if (shouldCloseTask) {
-      if (existingEventIds) await deleteOutlookTaskEvents(existingEventIds);
+      if (client) {
+        await deleteOutlookTaskEvents(existingEventIds, {
+          client,
+          title: existing.title,
+          description: cleanIncomingDescription,
+          dueAt: existing.dueAt ?? nextDueAt,
+          existingEventIds,
+        });
+      } else {
+        await deleteOutlookTaskEvents(existingEventIds);
+      }
       descriptionToStore = cleanIncomingDescription;
     } else if (client && nextStatus === 'OPEN' && nextDueAt) {
       const eventIds = await upsertOutlookTaskEvents({
@@ -241,7 +261,19 @@ router.patch('/:id', async (req, res) => {
       });
       descriptionToStore = writeOutlookEventIds(cleanIncomingDescription, eventIds);
     } else {
-      if (existingEventIds && !nextDueAt) await deleteOutlookTaskEvents(existingEventIds);
+      if (!nextDueAt) {
+        if (client) {
+          await deleteOutlookTaskEvents(existingEventIds, {
+            client,
+            title: existing.title,
+            description: cleanIncomingDescription,
+            dueAt: existing.dueAt,
+            existingEventIds,
+          });
+        } else {
+          await deleteOutlookTaskEvents(existingEventIds);
+        }
+      }
       descriptionToStore = cleanIncomingDescription;
     }
   }
