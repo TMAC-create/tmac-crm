@@ -331,7 +331,7 @@ clientsRouter.patch('/:id', async (req, res) => {
         },
       });
     }
-  } else if (parsed.data.status && parsed.data.status !== 'CALL_BACK') {
+  } else if (parsed.data.status) {
     const existingMetadata = ((updated.metadataJson ?? {}) as any) || {};
     const callbackMeta = (existingMetadata.callback ?? {}) as any;
 
