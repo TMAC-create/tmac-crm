@@ -20,11 +20,20 @@ function requiredEnv(name: string) {
 }
 
 export function normaliseUkMobile(input: string) {
+  if (!input) return input;
+
   const cleaned = input.replace(/[\s().-]/g, '');
 
+  // Already in international format, e.g. +447813784494
   if (cleaned.startsWith('+')) return cleaned;
+
+  // International prefix format, e.g. 00447813784494
   if (cleaned.startsWith('00')) return `+${cleaned.slice(2)}`;
+
+  // UK mobile format stored in CRM, e.g. 07813784494
   if (cleaned.startsWith('0')) return `+44${cleaned.slice(1)}`;
+
+  // UK international without plus, e.g. 447813784494
   if (cleaned.startsWith('44')) return `+${cleaned}`;
 
   return cleaned;
@@ -67,6 +76,7 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
     headers: {
       'Content-Type': 'application/json',
       [apiKeyHeader]: apiKey,
+      AccountReference: accountReference,
     },
     body: JSON.stringify(payload),
   });
