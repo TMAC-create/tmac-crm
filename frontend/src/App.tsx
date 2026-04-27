@@ -80,6 +80,20 @@ const emptyTemplateForm: TemplateForm = {
   active: true,
 };
 
+type SmsComposerState = {
+  open: boolean;
+  templateId: string;
+  message: string;
+  sending: boolean;
+};
+
+const emptySmsComposer: SmsComposerState = {
+  open: false,
+  templateId: '',
+  message: '',
+  sending: false,
+};
+
 type AdminSection = 'templates' | 'creditors' | null;
 type DebtItem = {
   id: string;
@@ -420,6 +434,7 @@ const [templateForm, setTemplateForm] = useState<TemplateForm>(emptyTemplateForm
 const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 const [templateFilter, setTemplateFilter] = useState<TemplateType>('SMS');
 const [openAdminSection, setOpenAdminSection] = useState<AdminSection>(null);
+const [smsComposer, setSmsComposer] = useState<SmsComposerState>(emptySmsComposer);
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -1006,6 +1021,100 @@ async function deleteTemplate(id: string) {
   if (editingTemplateId === id) resetTemplateForm(templateFilter);
   await loadTemplates();
   setSuccess('Template deleted successfully.');
+}
+
+function smsTemplatesForComposer() {
+  return templates.filter((template) => template.type === 'SMS' && template.active);
+}
+
+function mergeClientMessageTemplate(body: string, client: Client) {
+  const values: Record<string, string> = {
+    firstName: client.firstName || '',
+    lastName: client.lastName || '',
+    fullName: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
+    title: client.title || '',
+    reference: client.reference ? String(client.reference) : '',
+    email: client.email || '',
+    mobile: client.mobile || '',
+    postcode: client.postcode || '',
+  };
+
+  return body.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, rawKey: string) => {
+    const key = rawKey.trim();
+    return values[key] ?? '';
+  });
+}
+
+async function openSmsComposer() {
+  if (!selectedClient) return;
+
+  setError('');
+  setSuccess('');
+
+  if (!selectedClient.mobile) {
+    setError('This client does not have a mobile number saved.');
+    return;
+  }
+
+  if (templates.length === 0) {
+    await loadTemplates();
+  }
+
+  const availableSmsTemplates = templates.filter((template) => template.type === 'SMS' && template.active);
+  const firstTemplate = availableSmsTemplates[0];
+
+  setSmsComposer({
+    open: true,
+    templateId: firstTemplate?.id || '',
+    message: firstTemplate ? mergeClientMessageTemplate(firstTemplate.body, selectedClient) : '',
+    sending: false,
+  });
+}
+
+function updateSmsTemplate(templateId: string) {
+  const template = templates.find((item) => item.id === templateId);
+  setSmsComposer((prev) => ({
+    ...prev,
+    templateId,
+    message: template && selectedClient ? mergeClientMessageTemplate(template.body, selectedClient) : prev.message,
+  }));
+}
+
+async function sendSmsMessage() {
+  if (!selectedClient) return;
+
+  if (!smsComposer.message.trim()) {
+    setError('Please enter an SMS message before sending.');
+    return;
+  }
+
+  setError('');
+  setSuccess('');
+  setSmsComposer((prev) => ({ ...prev, sending: true }));
+
+  const response = await fetch(`${API_URL}/messages/sms`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      clientId: selectedClient.id,
+      templateId: smsComposer.templateId || undefined,
+      body: smsComposer.message,
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    setSmsComposer((prev) => ({ ...prev, sending: false }));
+    setError(payload.message || 'Could not send SMS.');
+    return;
+  }
+
+  setSmsComposer(emptySmsComposer);
+  await loadClientDetail(selectedClient.id);
+  setSuccess('SMS sent successfully.');
 }
 
 function resetDebtForm() {
@@ -1771,6 +1880,9 @@ function formatDateTime(value: string) {
             </button>
             <button className="secondary" onClick={() => populateClientWorkspace(selectedClient)}>
               Reset
+            </button>
+            <button className="secondary" onClick={() => void openSmsComposer()}>
+              Send SMS
             </button>
             <button className="primary" onClick={saveClientChanges}>
               Save changes
@@ -3130,6 +3242,9 @@ function renderNotesTab() {
             <button className="secondary" onClick={closeClientRecord}>
               Back to client list
             </button>
+            <button className="secondary" onClick={() => void openSmsComposer()}>
+              Send SMS
+            </button>
             <button className="primary" onClick={saveClientChanges}>
               Save changes
             </button>
@@ -3583,6 +3698,53 @@ function renderPlaceholder(title: string) {
     </>
   )}
 </main>
+      {smsComposer.open && selectedClient && (
+        <div className="modal-backdrop">
+          <div className="modal card sms-modal">
+            <div className="modal-header">
+              <div>
+                <h3>Send SMS</h3>
+                <p className="muted-text">To {selectedClient.mobile || 'No mobile number'} — {selectedClient.firstName} {selectedClient.lastName}</p>
+              </div>
+              <button className="ghost" onClick={() => setSmsComposer(emptySmsComposer)}>Close</button>
+            </div>
+
+            <div className="modal-form">
+              <div>
+                <label>SMS template</label>
+                <select value={smsComposer.templateId} onChange={(e) => updateSmsTemplate(e.target.value)}>
+                  <option value="">Write manually</option>
+                  {smsTemplatesForComposer().map((template) => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label>Message</label>
+                <textarea
+                  className="sms-compose-textarea"
+                  value={smsComposer.message}
+                  onChange={(e) => setSmsComposer((prev) => ({ ...prev, message: e.target.value }))}
+                  placeholder="Type your SMS message..."
+                  rows={6}
+                />
+                <div className="sms-compose-meta">
+                  <span>{smsComposer.message.length} characters</span>
+                  <span>{'{{firstName}}'} {'{{lastName}}'} {'{{reference}}'}</span>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button className="secondary" onClick={() => setSmsComposer(emptySmsComposer)}>Cancel</button>
+                <button className="primary" disabled={smsComposer.sending} onClick={() => void sendSmsMessage()}>
+                  {smsComposer.sending ? 'Sending...' : 'Send SMS'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showTaskModal && (
         <div className="modal-backdrop">
           <div className="modal card">
