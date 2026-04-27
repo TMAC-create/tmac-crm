@@ -42,18 +42,6 @@ messagesRouter.post('/sms', async (req, res) => {
       templateId: parsed.data.templateId,
     });
   } catch (error) {
-    const err = error as Error & { status?: number; details?: unknown };
-
-    console.error('SMS SEND FAILED', {
-      clientId: client.id,
-      clientName: `${client.firstName} ${client.lastName}`,
-      crmMobile: client.mobile,
-      normalisedMobile: toNumber,
-      status: err.status,
-      message: err.message,
-      details: err.details,
-    });
-
     await prisma.smsMessage.create({
       data: {
         clientId: client.id,
@@ -64,13 +52,13 @@ messagesRouter.post('/sms', async (req, res) => {
         body: parsed.data.body,
         status: 'FAILED',
         provider: 'ESENDEX',
-        errorJson: (err.details || { message: err.message }) as any,
+        errorJson: (error as any).details || { message: (error as Error).message },
       },
     });
 
-    return res.status(err.status || 502).json({
-      message: err.message || 'Could not send SMS through Esendex.',
-      details: err.details,
+    return res.status((error as any).status || 502).json({
+      message: (error as Error).message || 'Could not send SMS through Esendex.',
+      details: (error as any).details,
     });
   }
 
