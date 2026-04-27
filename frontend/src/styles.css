@@ -2202,3 +2202,36 @@ dd { margin: 0; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   SMS compose modal
+   ========================================================= */
+.sms-modal {
+  width: min(100%, 760px);
+}
+
+.sms-compose-textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  font: inherit;
+  background: #fff;
+}
+
+.sms-compose-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .sms-compose-meta {
+    flex-direction: column;
+  }
+}
