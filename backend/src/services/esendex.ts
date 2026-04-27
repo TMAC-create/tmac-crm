@@ -1,149 +1,129 @@
-type EsendexSmsArgs = {
+type EsendexSendSmsInput = {
   to: string;
   body: string;
   clientId?: string;
   templateId?: string;
 };
 
-type EsendexError = Error & {
-  status?: number;
-  details?: unknown;
+type EsendexSendSmsResult = {
+  gatewayId?: string;
+  requestId?: string;
+  raw: unknown;
 };
 
-export function normaliseUkMobile(number: string): string {
-  if (!number) return number;
-
-  let n = String(number).trim();
-  n = n.replace(/[\s\-().]/g, '');
-
-  if (n.startsWith('00')) return `+${n.slice(2)}`;
-  if (n.startsWith('+44')) return n;
-  if (n.startsWith('44')) return `+${n}`;
-  if (n.startsWith('0')) return `+44${n.slice(1)}`;
-
-  return n;
-}
-
-function getRequiredEnv(name: string): string {
+function requiredEnv(name: string) {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
+  if (!value) {
+    throw new Error(`${name} is not configured.`);
+  }
   return value;
 }
 
-function parseJsonSafely(text: string): any {
+export function normaliseUkMobile(input: string) {
+  const cleaned = input.replace(/[\s().-]/g, '');
+
+  if (cleaned.startsWith('+')) return cleaned;
+  if (cleaned.startsWith('00')) return `+${cleaned.slice(2)}`;
+  if (cleaned.startsWith('0')) return `+44${cleaned.slice(1)}`;
+  if (cleaned.startsWith('44')) return `+${cleaned}`;
+
+  return cleaned;
+}
+
+async function readResponseBody(response: Response) {
+  const text = await response.text().catch(() => '');
+  if (!text) return { rawText: '' };
+
   try {
-    return text ? JSON.parse(text) : null;
+    return JSON.parse(text);
   } catch {
-    return text;
+    return { rawText: text };
   }
 }
 
-function firstDefined(...values: Array<string | undefined | null>): string | null {
-  for (const value of values) {
-    if (value) return value;
-  }
-  return null;
-}
-
-export async function sendEsendexSms({ to, body, clientId, templateId }: EsendexSmsArgs) {
-  const apiKey = getRequiredEnv('ESENDEX_API_KEY');
-  const accountReference = getRequiredEnv('ESENDEX_ACCOUNT_REFERENCE');
+export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
+  const apiKey = requiredEnv('ESENDEX_API_KEY');
+  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
   const senderName = process.env.ESENDEX_SENDER_NAME || 'TMAC';
-  const formattedNumber = normaliseUkMobile(to);
-
-  if (!body || !body.trim()) {
-    throw new Error('SMS body is empty.');
-  }
-
-  if (!formattedNumber || !formattedNumber.startsWith('+')) {
-    throw new Error(`Invalid mobile number after formatting: ${formattedNumber || '(blank)'}`);
-  }
+  const endpoint = process.env.ESENDEX_MESSAGES_URL || 'https://api.esendex.co.uk/v2/messages';
+  const apiKeyHeader = process.env.ESENDEX_API_KEY_HEADER || 'X-Api-Key';
+  const to = normaliseUkMobile(input.to);
 
   // Esendex v2 /messages expects:
-  // - channel, not channels
-  // - recipients, not recipient
-  // - body or templateId at the top level, not content.text
-  const requestPayload = {
+  // accountReference: string
+  // channel: 'SMS'
+  // recipients: array of recipient objects
+  // body: object with text OR templateId
+  const payload = {
+    accountReference,
     channel: 'SMS',
     recipients: [
       {
         address: {
-          msisdn: formattedNumber,
+          msisdn: to,
         },
       },
     ],
-    body,
-    channelSettings: {
-      sms: {
-        originator: senderName,
-        characterSet: 'GSM',
-      },
+    body: {
+      text: input.body,
     },
-    metadata: {
-      crm: 'TMAC',
-      ...(clientId ? { clientId } : {}),
-      ...(templateId ? { templateId } : {}),
-    },
+    from: senderName,
+    characterSet: 'Auto',
+    name: `TMAC SMS ${input.clientId || ''}`.trim(),
   };
 
   console.log('Sending Esendex SMS', {
-    endpoint: 'https://api.esendex.co.uk/v2/messages',
+    endpoint,
     accountReference,
-    to: formattedNumber,
+    to,
     senderName,
-    bodyLength: body.length,
-    requestPayload,
+    bodyLength: input.body.length,
+    requestPayload: payload,
   });
 
-  const response = await fetch('https://api.esendex.co.uk/v2/messages', {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Api-Key': apiKey,
-      AccountReference: accountReference,
+      [apiKeyHeader]: apiKey,
     },
-    body: JSON.stringify(requestPayload),
+    body: JSON.stringify(payload),
   });
 
-  const responseText = await response.text();
-  const responseBody = parseJsonSafely(responseText);
+  const raw = await readResponseBody(response);
 
   if (!response.ok) {
-    const error = new Error(
-      typeof responseBody === 'string'
-        ? responseBody
-        : JSON.stringify(responseBody)
-    ) as EsendexError;
-
-    error.status = response.status;
-    error.details = {
+    console.error('Esendex SMS send failed', {
       status: response.status,
       statusText: response.statusText,
-      responseBody,
-      responseText,
-      requestPayload,
-    };
+      endpoint,
+      accountReference,
+      to,
+      senderName,
+      requestPayload: payload,
+      responseBody: raw,
+    });
 
-    console.error('Esendex SMS send failed', error.details);
+    const responseText = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+    const error = new Error(responseText || 'Esendex SMS send failed.') as Error & {
+      status?: number;
+      details?: unknown;
+    };
+    error.status = response.status;
+    error.details = raw;
     throw error;
   }
 
-  console.log('Esendex SMS send success', responseBody);
+  const data = raw as any;
 
   return {
-    raw: responseBody,
-    requestId: firstDefined(
-      response.headers.get('x-request-id'),
-      response.headers.get('request-id'),
-      responseBody?.requestId,
-      responseBody?.id
-    ),
-    gatewayId: firstDefined(
-      responseBody?.gatewayId,
-      responseBody?.messageId,
-      responseBody?.id,
-      responseBody?.messages?.[0]?.id,
-      responseBody?.messages?.[0]?.gatewayId
-    ),
+    gatewayId:
+      data.gatewayId ||
+      data.id ||
+      data.messageId ||
+      data.messages?.[0]?.id ||
+      data.messages?.[0]?.gatewayId,
+    requestId: data.requestId || data.id,
+    raw,
   };
 }
