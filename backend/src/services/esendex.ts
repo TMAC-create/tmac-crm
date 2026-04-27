@@ -1,178 +1,69 @@
-type EsendexSendSmsInput = {
+import fetch from 'node-fetch';
+
+function formatUKMobile(number: string): string {
+  if (!number) return number;
+
+  let n = number.replace(/\s+/g, '');
+
+  if (n.startsWith('+44')) return n;
+  if (n.startsWith('44')) return `+${n}`;
+  if (n.startsWith('0')) return `+44${n.slice(1)}`;
+
+  return n;
+}
+
+export async function sendSMS({
+  to,
+  body,
+}: {
   to: string;
   body: string;
-  clientId?: string;
-  templateId?: string;
-};
+}) {
+  const apiKey = process.env.ESENDEX_API_KEY;
+  const accountRef = process.env.ESENDEX_ACCOUNT_REFERENCE;
+  const sender = process.env.ESENDEX_SENDER_NAME;
 
-type EsendexSendSmsResult = {
-  gatewayId?: string;
-  requestId?: string;
-  raw: unknown;
-};
-
-function requiredEnv(name: string) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is not configured.`);
-  }
-  return value;
-}
-
-export function normaliseUkMobile(input: string) {
-  if (!input) return input;
-
-  const cleaned = input.replace(/[\s().-]/g, '');
-
-  // Already in international format, e.g. +447813784494
-  if (cleaned.startsWith('+')) return cleaned;
-
-  // International prefix format, e.g. 00447813784494
-  if (cleaned.startsWith('00')) return `+${cleaned.slice(2)}`;
-
-  // UK mobile format stored in CRM, e.g. 07813784494
-  if (cleaned.startsWith('0')) return `+44${cleaned.slice(1)}`;
-
-  // UK international without plus, e.g. 447813784494
-  if (cleaned.startsWith('44')) return `+${cleaned}`;
-
-  return cleaned;
-}
-
-function parseMaybeJson(text: string) {
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { rawText: text };
-  }
-}
-
-function getReadableEsendexError(status: number, parsedBody: unknown) {
-  if (parsedBody && typeof parsedBody === 'object') {
-    const body = parsedBody as any;
-
-    if (typeof body.message === 'string') return body.message;
-    if (typeof body.error === 'string') return body.error;
-    if (typeof body.title === 'string') return body.title;
-    if (typeof body.detail === 'string') return body.detail;
-
-    if (Array.isArray(body.errors) && body.errors.length > 0) {
-      return body.errors
-        .map((item: any) => item?.message || item?.detail || JSON.stringify(item))
-        .join('; ');
-    }
-
-    if (body.rawText) return String(body.rawText);
-  }
-
-  if (status === 400) return 'Esendex rejected the SMS request. Check recipient number, sender name, account reference and payload format.';
-  if (status === 401) return 'Esendex rejected the API key.';
-  if (status === 403) return 'Esendex rejected access for this account/API key.';
-
-  return 'Esendex SMS send failed.';
-}
-
-export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
-  const apiKey = requiredEnv('ESENDEX_API_KEY');
-  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
-  const senderName = process.env.ESENDEX_SENDER_NAME || 'TMAC';
-  const endpoint = process.env.ESENDEX_MESSAGES_URL || 'https://api.esendex.co.uk/v2/messages';
-  const apiKeyHeader = process.env.ESENDEX_API_KEY_HEADER || 'X-Api-Key';
-  const to = normaliseUkMobile(input.to);
+  const formattedNumber = formatUKMobile(to);
 
   const payload = {
-    accountReference,
-    channels: ['SMS'],
-    recipient: {
-      address: {
-        msisdn: to,
+    accountReference: accountRef,
+    messages: [
+      {
+        to: formattedNumber,
+        body: body,
+        from: sender,
       },
-    },
-    content: {
-      text: input.body,
-    },
-    channelSettings: {
-      sms: {
-        originator: senderName,
-        characterSet: 'Auto',
-      },
-    },
-    metadata: {
-      crm: 'TMAC',
-      clientId: input.clientId || '',
-      templateId: input.templateId || '',
-    },
+    ],
   };
 
-  console.log('Sending Esendex SMS', {
-    endpoint,
-    accountReference,
-    to,
-    senderName,
-    bodyLength: input.body.length,
-  });
+  console.log('📤 Sending Esendex SMS:', payload);
 
-  const response = await fetch(endpoint, {
+  const res = await fetch('https://api.esendex.co.uk/v2/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      [apiKeyHeader]: apiKey,
-      AccountReference: accountReference,
+      'X-Api-Key': apiKey || '',
     },
     body: JSON.stringify(payload),
   });
 
-  const responseText = await response.text().catch(() => '');
-  const parsedBody = parseMaybeJson(responseText);
+  const text = await res.text();
 
-  if (!response.ok) {
-    const message = getReadableEsendexError(response.status, parsedBody);
-
-    console.error('Esendex SMS send failed', {
-      status: response.status,
-      statusText: response.statusText,
-      endpoint,
-      accountReference,
-      to,
-      senderName,
-      requestPayload: payload,
-      responseBody: parsedBody,
-      responseText,
+  if (!res.ok) {
+    console.error('❌ Esendex ERROR:', {
+      status: res.status,
+      response: text,
     });
 
-    const error = new Error(message) as Error & {
-      status?: number;
-      details?: unknown;
-      responseText?: string;
-    };
-
-    error.status = response.status;
-    error.details = {
-      status: response.status,
-      statusText: response.statusText,
-      responseBody: parsedBody,
-      responseText,
-      requestPayload: payload,
-    };
-    error.responseText = responseText;
-
-    throw error;
+    throw new Error(`Esendex failed: ${res.status} - ${text}`);
   }
 
-  const data = parsedBody as any;
+  let json: any = {};
+  try {
+    json = JSON.parse(text);
+  } catch {
+    console.warn('⚠️ Non-JSON response:', text);
+  }
 
-  console.log('Esendex SMS accepted', {
-    status: response.status,
-    to,
-    gatewayId: data?.gatewayId || data?.id || data?.messageId,
-    requestId: data?.requestId,
-  });
-
-  return {
-    gatewayId: data?.gatewayId || data?.id || data?.messageId,
-    requestId: data?.requestId,
-    raw: parsedBody,
-  };
+  return json;
 }
