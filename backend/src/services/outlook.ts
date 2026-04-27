@@ -288,20 +288,92 @@ async function deleteEvents(eventIds?: OutlookEventIds | null): Promise<void> {
   }
 }
 
+
+function dateWindowFor(value?: Date | string | null): { start: string; end: string } {
+  const centre = value ? new Date(value) : new Date();
+  const start = new Date(centre.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const end = new Date(centre.getTime() + 90 * 24 * 60 * 60 * 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+async function deleteEventsBySubject(subject: string, around?: Date | string | null): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) return;
+
+  const window = dateWindowFor(around);
+
+  for (const mailbox of Object.values(MAILBOXES)) {
+    const filter = `subject eq '${escapeODataString(subject)}'`;
+    const path =
+      `/users/${encodeURIComponent(mailbox)}/calendarView` +
+      `?startDateTime=${encodeURIComponent(window.start)}` +
+      `&endDateTime=${encodeURIComponent(window.end)}` +
+      `&$select=id,subject,start` +
+      `&$top=250` +
+      `&$filter=${encodeURIComponent(filter)}`;
+
+    const listResponse = await graphRequest(token, path, { method: 'GET' });
+
+    if (!listResponse.ok) {
+      console.error(`Outlook event lookup failed for ${mailbox}:`, await listResponse.text());
+      continue;
+    }
+
+    const data = (await listResponse.json()) as { value?: Array<{ id?: string; subject?: string }> };
+    const matches = (data.value ?? []).filter((event) => event.id && event.subject === subject);
+
+    for (const event of matches) {
+      const deleteResponse = await graphRequest(
+        token,
+        `/users/${encodeURIComponent(mailbox)}/events/${event.id}`,
+        { method: 'DELETE' },
+      );
+
+      if (!deleteResponse.ok && deleteResponse.status !== 404) {
+        console.error(`Outlook matched event delete failed for ${mailbox}:`, await deleteResponse.text());
+      }
+    }
+  }
+}
+
 export async function upsertOutlookTaskEvents(args: TaskArgs): Promise<OutlookEventIds | null> {
   const task = normaliseTaskArgs(args);
   if (!task.dueAt) return args.existingEventIds ?? null;
   return upsertEvents(taskPayload(args), args.existingEventIds);
 }
 
-export async function deleteOutlookTaskEvents(eventIds?: OutlookEventIds | null): Promise<void> {
+export async function deleteOutlookTaskEvents(
+  eventIds?: OutlookEventIds | null,
+  fallback?: TaskArgs,
+): Promise<void> {
   await deleteEvents(eventIds);
+
+  if (fallback) {
+    const task = normaliseTaskArgs(fallback);
+    await deleteEventsBySubject(taskPayload(fallback).subject, task.dueAt);
+  }
 }
 
 export async function upsertOutlookCallbackEvents(args: CallbackArgs): Promise<OutlookEventIds | null> {
   return upsertEvents(callbackPayload(args), args.existingEventIds);
 }
 
-export async function deleteOutlookCallbackEvents(eventIds?: OutlookEventIds | null): Promise<void> {
+export async function deleteOutlookCallbackEvents(
+  eventIds?: OutlookEventIds | null,
+  fallback?: CallbackArgs,
+): Promise<void> {
   await deleteEvents(eventIds);
+
+  if (fallback) {
+    const callbackDate = fallback.callbackDate;
+    const callbackTime = fallback.callbackTime;
+    const around = callbackDate && callbackTime
+      ? londonLocalToUtcDate(callbackDate, callbackTime)
+      : null;
+    await deleteEventsBySubject(callbackPayload(fallback).subject, around);
+  }
 }
