@@ -44,11 +44,6 @@ enum TaskOutcome {
   CANCELLED
 }
 
-enum TemplateType {
-  SMS
-  EMAIL
-}
-
 model User {
   id           String     @id @default(cuid())
   name         String
@@ -191,13 +186,14 @@ model ClientDocument {
   createdAt    DateTime @default(now())
 }
 
+
 model Template {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  type      TemplateType
+  type      String
   subject   String?
   body      String
-  active    Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
