@@ -8,6 +8,7 @@ type EsendexSendSmsInput = {
 type EsendexSendSmsResult = {
   gatewayId?: string;
   requestId?: string;
+  messageIds?: string[];
   raw: unknown;
 };
 
@@ -30,15 +31,22 @@ export function normaliseUkMobile(input: string) {
   return cleaned;
 }
 
-async function readResponseBody(response: Response) {
-  const text = await response.text().catch(() => '');
-  if (!text) return { rawText: '' };
+function buildErrorMessage(raw: unknown) {
+  if (typeof raw === 'string') return raw;
 
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { rawText: text };
+  if (raw && typeof raw === 'object') {
+    const maybeErrors = (raw as any).errors;
+    if (Array.isArray(maybeErrors) && maybeErrors.length > 0) {
+      return maybeErrors
+        .map((item) => item?.errorMessage || item?.message || JSON.stringify(item))
+        .filter(Boolean)
+        .join(' | ');
+    }
+
+    if ('message' in raw) return String((raw as any).message);
   }
+
+  return 'Esendex SMS send failed.';
 }
 
 export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
@@ -49,27 +57,33 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
   const apiKeyHeader = process.env.ESENDEX_API_KEY_HEADER || 'X-Api-Key';
   const to = normaliseUkMobile(input.to);
 
-  // Esendex v2 /messages expects:
-  // accountReference: string
-  // channel: 'SMS'
-  // recipients: array of recipient objects
-  // body: object with text OR templateId
+  // Esendex v2 requires recipients as an array of objects with msisdn at the top level.
+  // Do not use recipient.address.msisdn here; that is used in response/status payloads.
   const payload = {
     accountReference,
     channel: 'SMS',
-    recipients: [
-      {
-        address: {
-          msisdn: to,
-        },
-      },
-    ],
+    from: senderName,
+    characterSet: 'Auto',
+    messageType: 'CustomerSupport',
     body: {
       text: input.body,
     },
-    from: senderName,
-    characterSet: 'Auto',
-    name: `TMAC SMS ${input.clientId || ''}`.trim(),
+    recipients: [
+      {
+        msisdn: to,
+        variables: {},
+        metaData: {
+          crm: 'TMAC',
+          clientId: input.clientId || '',
+          templateId: input.templateId || '',
+        },
+      },
+    ],
+    metaData: {
+      crm: 'TMAC',
+      clientId: input.clientId || '',
+      templateId: input.templateId || '',
+    },
   };
 
   console.log('Sending Esendex SMS', {
@@ -90,7 +104,14 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
     body: JSON.stringify(payload),
   });
 
-  const raw = await readResponseBody(response);
+  const responseText = await response.text();
+  let raw: unknown = responseText;
+
+  try {
+    raw = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    raw = responseText;
+  }
 
   if (!response.ok) {
     console.error('Esendex SMS send failed', {
@@ -102,28 +123,28 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
       senderName,
       requestPayload: payload,
       responseBody: raw,
+      responseText,
     });
 
-    const responseText = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
-    const error = new Error(responseText || 'Esendex SMS send failed.') as Error & {
+    const error = new Error(buildErrorMessage(raw)) as Error & {
       status?: number;
+      statusText?: string;
       details?: unknown;
+      responseText?: string;
     };
     error.status = response.status;
+    error.statusText = response.statusText;
     error.details = raw;
+    error.responseText = responseText;
     throw error;
   }
 
   const data = raw as any;
 
   return {
-    gatewayId:
-      data.gatewayId ||
-      data.id ||
-      data.messageId ||
-      data.messages?.[0]?.id ||
-      data.messages?.[0]?.gatewayId,
-    requestId: data.requestId || data.id,
+    gatewayId: data?.gatewayId || data?.data?.gatewayId || data?.data?.requestId || data?.requestId,
+    requestId: data?.requestId || data?.data?.requestId,
+    messageIds: data?.data?.messageIds || data?.messageIds,
     raw,
   };
 }
