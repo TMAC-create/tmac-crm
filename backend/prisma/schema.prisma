@@ -100,6 +100,7 @@ model Client {
   notes            Note[]
   tasks            Task[]
   activities       Activity[]
+  smsMessages      SmsMessage[]
   documents        Document[]
   clientDocuments  ClientDocument[]
   createdAt        DateTime     @default(now())
@@ -196,4 +197,23 @@ model Template {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SmsMessage {
+  id                String   @id @default(cuid())
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId          String
+  templateId        String?
+  direction         String   @default("OUTBOUND")
+  toNumber          String
+  fromName          String?
+  body              String
+  status            String   @default("SUBMITTED")
+  provider          String   @default("ESENDEX")
+  providerMessageId String?
+  providerRequestId String?
+  responseJson      Json?
+  errorJson         Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
