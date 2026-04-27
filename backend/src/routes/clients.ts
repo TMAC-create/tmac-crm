@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { OutlookEventIds } from '../services/outlook.js';
-import { upsertOutlookCallbackEvents } from '../services/outlook.js';
+import { deleteOutlookCallbackEvents, upsertOutlookCallbackEvents } from '../services/outlook.js';
 
 export const clientsRouter = Router();
 
@@ -328,6 +328,31 @@ clientsRouter.patch('/:id', async (req, res) => {
           dueAt: callbackDueAt,
           status: 'OPEN',
           priority: 'MEDIUM',
+        },
+      });
+    }
+  } else if (parsed.data.status && parsed.data.status !== 'CALL_BACK') {
+    const existingMetadata = ((updated.metadataJson ?? {}) as any) || {};
+    const callbackMeta = (existingMetadata.callback ?? {}) as any;
+
+    if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
+      await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds, {
+        client: updated,
+        callbackDate: callbackMeta.date,
+        callbackTime: callbackMeta.time,
+        notes: callbackMeta.notes,
+      });
+
+      await prisma.client.update({
+        where: { id: updated.id },
+        data: {
+          metadataJson: {
+            ...existingMetadata,
+            callback: {
+              ...callbackMeta,
+              outlookEventIds: {},
+            },
+          },
         },
       });
     }
