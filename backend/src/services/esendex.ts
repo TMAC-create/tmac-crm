@@ -39,6 +39,41 @@ export function normaliseUkMobile(input: string) {
   return cleaned;
 }
 
+function parseMaybeJson(text: string) {
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { rawText: text };
+  }
+}
+
+function getReadableEsendexError(status: number, parsedBody: unknown) {
+  if (parsedBody && typeof parsedBody === 'object') {
+    const body = parsedBody as any;
+
+    if (typeof body.message === 'string') return body.message;
+    if (typeof body.error === 'string') return body.error;
+    if (typeof body.title === 'string') return body.title;
+    if (typeof body.detail === 'string') return body.detail;
+
+    if (Array.isArray(body.errors) && body.errors.length > 0) {
+      return body.errors
+        .map((item: any) => item?.message || item?.detail || JSON.stringify(item))
+        .join('; ');
+    }
+
+    if (body.rawText) return String(body.rawText);
+  }
+
+  if (status === 400) return 'Esendex rejected the SMS request. Check recipient number, sender name, account reference and payload format.';
+  if (status === 401) return 'Esendex rejected the API key.';
+  if (status === 403) return 'Esendex rejected access for this account/API key.';
+
+  return 'Esendex SMS send failed.';
+}
+
 export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
   const apiKey = requiredEnv('ESENDEX_API_KEY');
   const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
@@ -71,6 +106,14 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
     },
   };
 
+  console.log('Sending Esendex SMS', {
+    endpoint,
+    accountReference,
+    to,
+    senderName,
+    bodyLength: input.body.length,
+  });
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -81,21 +124,55 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
     body: JSON.stringify(payload),
   });
 
-  const raw = await response.json().catch(async () => ({ text: await response.text().catch(() => '') }));
+  const responseText = await response.text().catch(() => '');
+  const parsedBody = parseMaybeJson(responseText);
 
   if (!response.ok) {
-    const message = typeof raw === 'object' && raw && 'message' in raw ? String((raw as any).message) : 'Esendex SMS send failed.';
-    const error = new Error(message) as Error & { status?: number; details?: unknown };
+    const message = getReadableEsendexError(response.status, parsedBody);
+
+    console.error('Esendex SMS send failed', {
+      status: response.status,
+      statusText: response.statusText,
+      endpoint,
+      accountReference,
+      to,
+      senderName,
+      requestPayload: payload,
+      responseBody: parsedBody,
+      responseText,
+    });
+
+    const error = new Error(message) as Error & {
+      status?: number;
+      details?: unknown;
+      responseText?: string;
+    };
+
     error.status = response.status;
-    error.details = raw;
+    error.details = {
+      status: response.status,
+      statusText: response.statusText,
+      responseBody: parsedBody,
+      responseText,
+      requestPayload: payload,
+    };
+    error.responseText = responseText;
+
     throw error;
   }
 
-  const data = raw as any;
+  const data = parsedBody as any;
+
+  console.log('Esendex SMS accepted', {
+    status: response.status,
+    to,
+    gatewayId: data?.gatewayId || data?.id || data?.messageId,
+    requestId: data?.requestId,
+  });
 
   return {
-    gatewayId: data.gatewayId || data.id || data.messageId,
-    requestId: data.requestId,
-    raw,
+    gatewayId: data?.gatewayId || data?.id || data?.messageId,
+    requestId: data?.requestId,
+    raw: parsedBody,
   };
 }
