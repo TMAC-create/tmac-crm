@@ -1,10 +1,22 @@
-import fetch from 'node-fetch';
+type EsendexSmsArgs = {
+  to: string;
+  body: string;
+  clientId?: string;
+  templateId?: string;
+};
 
-function formatUKMobile(number: string): string {
+type EsendexError = Error & {
+  status?: number;
+  details?: unknown;
+};
+
+export function normaliseUkMobile(number: string): string {
   if (!number) return number;
 
-  let n = number.replace(/\s+/g, '');
+  let n = String(number).trim();
+  n = n.replace(/[\s\-().]/g, '');
 
+  if (n.startsWith('00')) return `+${n.slice(2)}`;
   if (n.startsWith('+44')) return n;
   if (n.startsWith('44')) return `+${n}`;
   if (n.startsWith('0')) return `+44${n.slice(1)}`;
@@ -12,58 +24,126 @@ function formatUKMobile(number: string): string {
   return n;
 }
 
-export async function sendSMS({
-  to,
-  body,
-}: {
-  to: string;
-  body: string;
-}) {
-  const apiKey = process.env.ESENDEX_API_KEY;
-  const accountRef = process.env.ESENDEX_ACCOUNT_REFERENCE;
-  const sender = process.env.ESENDEX_SENDER_NAME;
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set.`);
+  return value;
+}
 
-  const formattedNumber = formatUKMobile(to);
+function parseJsonSafely(text: string): any {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return text;
+  }
+}
 
-  const payload = {
-    accountReference: accountRef,
-    messages: [
+function firstDefined(...values: Array<string | undefined | null>): string | null {
+  for (const value of values) {
+    if (value) return value;
+  }
+  return null;
+}
+
+export async function sendEsendexSms({ to, body, clientId, templateId }: EsendexSmsArgs) {
+  const apiKey = getRequiredEnv('ESENDEX_API_KEY');
+  const accountReference = getRequiredEnv('ESENDEX_ACCOUNT_REFERENCE');
+  const senderName = process.env.ESENDEX_SENDER_NAME || 'TMAC';
+  const formattedNumber = normaliseUkMobile(to);
+
+  if (!body || !body.trim()) {
+    throw new Error('SMS body is empty.');
+  }
+
+  if (!formattedNumber || !formattedNumber.startsWith('+')) {
+    throw new Error(`Invalid mobile number after formatting: ${formattedNumber || '(blank)'}`);
+  }
+
+  // Esendex v2 /messages expects:
+  // - channel, not channels
+  // - recipients, not recipient
+  // - body or templateId at the top level, not content.text
+  const requestPayload = {
+    channel: 'SMS',
+    recipients: [
       {
-        to: formattedNumber,
-        body: body,
-        from: sender,
+        address: {
+          msisdn: formattedNumber,
+        },
       },
     ],
+    body,
+    channelSettings: {
+      sms: {
+        originator: senderName,
+        characterSet: 'GSM',
+      },
+    },
+    metadata: {
+      crm: 'TMAC',
+      ...(clientId ? { clientId } : {}),
+      ...(templateId ? { templateId } : {}),
+    },
   };
 
-  console.log('📤 Sending Esendex SMS:', payload);
+  console.log('Sending Esendex SMS', {
+    endpoint: 'https://api.esendex.co.uk/v2/messages',
+    accountReference,
+    to: formattedNumber,
+    senderName,
+    bodyLength: body.length,
+    requestPayload,
+  });
 
-  const res = await fetch('https://api.esendex.co.uk/v2/messages', {
+  const response = await fetch('https://api.esendex.co.uk/v2/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Api-Key': apiKey || '',
+      'X-Api-Key': apiKey,
+      AccountReference: accountReference,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
   });
 
-  const text = await res.text();
+  const responseText = await response.text();
+  const responseBody = parseJsonSafely(responseText);
 
-  if (!res.ok) {
-    console.error('❌ Esendex ERROR:', {
-      status: res.status,
-      response: text,
-    });
+  if (!response.ok) {
+    const error = new Error(
+      typeof responseBody === 'string'
+        ? responseBody
+        : JSON.stringify(responseBody)
+    ) as EsendexError;
 
-    throw new Error(`Esendex failed: ${res.status} - ${text}`);
+    error.status = response.status;
+    error.details = {
+      status: response.status,
+      statusText: response.statusText,
+      responseBody,
+      responseText,
+      requestPayload,
+    };
+
+    console.error('Esendex SMS send failed', error.details);
+    throw error;
   }
 
-  let json: any = {};
-  try {
-    json = JSON.parse(text);
-  } catch {
-    console.warn('⚠️ Non-JSON response:', text);
-  }
+  console.log('Esendex SMS send success', responseBody);
 
-  return json;
+  return {
+    raw: responseBody,
+    requestId: firstDefined(
+      response.headers.get('x-request-id'),
+      response.headers.get('request-id'),
+      responseBody?.requestId,
+      responseBody?.id
+    ),
+    gatewayId: firstDefined(
+      responseBody?.gatewayId,
+      responseBody?.messageId,
+      responseBody?.id,
+      responseBody?.messages?.[0]?.id,
+      responseBody?.messages?.[0]?.gatewayId
+    ),
+  };
 }
