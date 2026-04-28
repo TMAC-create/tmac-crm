@@ -10,7 +10,6 @@ import clientDocumentsRouter from './routes/clientDocuments.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { healthRouter } from './routes/health.js';
 import taskRoutes from './routes/tasks.js';
-import { templatesRouter } from './routes/templates.js';
 import { messagesRouter } from './routes/messages.js';
 
 const app = express();
@@ -26,7 +25,6 @@ app.use('/clients', clientsRouter);
 app.use('/clients', clientDocumentsRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/tasks', taskRoutes);
-app.use('/templates', templatesRouter);
 app.use('/messages', messagesRouter);
 
 app.get('/', (_req, res) => {
