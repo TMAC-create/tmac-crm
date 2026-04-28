@@ -1,7 +1,8 @@
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+
 const MAILBOXES = {
-  mike: 'mike@themoneyadvicecentre.com',
-  steven: 'steven@themoneyadvicecentre.com',
+  mike: process.env.OUTLOOK_MIKE_MAILBOX || process.env.MICROSOFT_MIKE_MAILBOX || 'mike@themoneyadvicecentre.com',
+  steven: process.env.OUTLOOK_STEVEN_MAILBOX || process.env.MICROSOFT_STEVEN_MAILBOX || 'steven@themoneyadvicecentre.com',
 } as const;
 
 export type OutlookEventIds = {
@@ -22,7 +23,7 @@ type CallbackArgs = {
   client: ClientSummary;
   callbackDate?: string;
   callbackTime?: string;
-  notes?: string;
+  notes?: string | null;
   existingEventIds?: OutlookEventIds | null;
 };
 
@@ -51,7 +52,10 @@ function isConfigured(): boolean {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  if (!isConfigured()) return null;
+  if (!isConfigured()) {
+    console.warn('Outlook sync skipped: Microsoft/Outlook environment variables are not configured.');
+    return null;
+  }
 
   const tenantId = getEnv('MICROSOFT_TENANT_ID', 'OUTLOOK_TENANT_ID')!;
   const clientId = getEnv('MICROSOFT_CLIENT_ID', 'OUTLOOK_CLIENT_ID')!;
@@ -155,13 +159,10 @@ export function londonPartsFromDate(date: Date): { date: string; time: string } 
   };
 }
 
-function addMinutes(time: string, minutesToAdd: number): string {
-  const hours = Number(time.slice(0, 2));
-  const minutes = Number(time.slice(3, 5));
-  const total = hours * 60 + minutes + minutesToAdd;
-  const newHours = Math.floor((total % (24 * 60)) / 60);
-  const newMinutes = total % 60;
-  return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+function addMinutesToLocalDateTime(datePart: string, timePart: string, minutesToAdd: number): { date: string; time: string } {
+  const startUtc = londonLocalToUtcDate(datePart, timePart);
+  if (!startUtc) return { date: datePart, time: timePart };
+  return londonPartsFromDate(new Date(startUtc.getTime() + minutesToAdd * 60_000));
 }
 
 function buildClientLabel(client: ClientSummary): string {
@@ -182,6 +183,8 @@ function buildBody(client: ClientSummary, title: string, notes?: string | null):
 }
 
 function buildEventPayload(client: ClientSummary, title: string, datePart: string, timePart: string, notes?: string | null) {
+  const end = addMinutesToLocalDateTime(datePart, timePart, 30);
+
   return {
     subject: `TMAC - ${title} - ${buildClientLabel(client)}`,
     body: {
@@ -193,66 +196,78 @@ function buildEventPayload(client: ClientSummary, title: string, datePart: strin
       timeZone: 'Europe/London',
     },
     end: {
-      dateTime: `${datePart}T${addMinutes(timePart, 30)}:00`,
+      dateTime: `${end.date}T${end.time}:00`,
       timeZone: 'Europe/London',
     },
     location: {
       displayName: 'TMAC CRM',
     },
     categories: ['TMAC CRM'],
+    showAs: 'busy',
+    isReminderOn: true,
+    reminderMinutesBeforeStart: 15,
   };
+}
+
+function hasAnyEventId(eventIds?: OutlookEventIds | null): boolean {
+  return Boolean(eventIds?.mike || eventIds?.steven);
 }
 
 async function upsertEvents(payload: Record<string, unknown>, existingEventIds?: OutlookEventIds | null): Promise<OutlookEventIds | null> {
   const token = await getAccessToken();
-  if (!token) return null;
+  if (!token) return existingEventIds && hasAnyEventId(existingEventIds) ? existingEventIds : null;
 
   const result: OutlookEventIds = {};
 
   for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<[keyof OutlookEventIds, string]>) {
     const existingId = existingEventIds?.[key];
-    let response: Response | null = null;
 
     if (existingId) {
-      response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${existingId}`, {
+      const patchResponse = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${encodeURIComponent(existingId)}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
+      if (patchResponse.ok) {
+        result[key] = existingId;
+        continue;
+      }
+
+      if (patchResponse.status !== 404) {
+        console.error(`Outlook event update failed for ${mailbox}:`, await patchResponse.text());
         result[key] = existingId;
         continue;
       }
     }
 
-    response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events`, {
+    const createResponse = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      console.error(`Outlook event create failed for ${mailbox}:`, await response.text());
+    if (!createResponse.ok) {
+      console.error(`Outlook event create failed for ${mailbox}:`, await createResponse.text());
       continue;
     }
 
-    const data = (await response.json()) as { id?: string };
+    const data = (await createResponse.json()) as { id?: string };
     if (data.id) result[key] = data.id;
   }
 
-  return result;
+  return hasAnyEventId(result) ? result : null;
 }
 
 async function deleteEvents(eventIds?: OutlookEventIds | null): Promise<void> {
-  if (!eventIds) return;
+  if (!hasAnyEventId(eventIds)) return;
 
   const token = await getAccessToken();
   if (!token) return;
 
   for (const [key, mailbox] of Object.entries(MAILBOXES) as Array<[keyof OutlookEventIds, string]>) {
-    const eventId = eventIds[key];
+    const eventId = eventIds?.[key];
     if (!eventId) continue;
 
-    const response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${eventId}`, {
+    const response = await graphRequest(token, `/users/${encodeURIComponent(mailbox)}/events/${encodeURIComponent(eventId)}`, {
       method: 'DELETE',
     });
 
@@ -279,6 +294,7 @@ export async function upsertOutlookTaskEvents(args: TaskArgs): Promise<OutlookEv
   if (!args.dueAt) return null;
   const dueDate = args.dueAt instanceof Date ? args.dueAt : new Date(args.dueAt);
   if (Number.isNaN(dueDate.getTime())) return null;
+
   const londonParts = londonPartsFromDate(dueDate);
   return upsertEvents(
     buildEventPayload(args.client, args.title, londonParts.date, londonParts.time, args.description),
