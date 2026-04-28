@@ -65,7 +65,7 @@ function extractInboundPayload(payload: any) {
 
       return { fromNumber, toNumber, body, providerMessageId, receivedAt, raw: item };
     })
-    .filter((item) => item.fromNumber && item.body);
+    .filter((item: { fromNumber?: string; body?: string }) => item.fromNumber && item.body);
 }
 
 async function findClientByMobile(rawMobile: string) {
