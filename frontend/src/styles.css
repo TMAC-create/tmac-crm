@@ -2533,3 +2533,30 @@ dd { margin: 0; font-weight: 600; }
 .sms-overview-actions {
   flex: 0 0 auto;
 }
+
+
+/* Final operational polish: Admin separation, bigger composers, task/calendar controls */
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+  background: #fff;
+}
+.admin-accordion { display: grid; gap: 24px; }
+.admin-details { border: 1px solid rgba(88,45,145,0.16); overflow: hidden; }
+.admin-details + .admin-details { margin-top: 10px; }
+.admin-details > summary { min-height: 88px; background: linear-gradient(135deg, #ffffff 0%, #f6f3fb 100%); }
+.admin-details[open] > summary { border-bottom: 1px solid rgba(88,45,145,0.16); }
+.admin-panel-body { padding: 22px; background: #fbfcff; }
+.admin-sub-panel { background: #ffffff; box-shadow: none; }
+.template-body-textarea { min-height: 190px; }
+.sms-compose-textarea { min-height: 180px; font-size: 15px; }
+.task-notes-textarea { min-height: 96px; }
+.manual-task-panel { border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: #f8fafc; margin-bottom: 18px; }
+.sms-compose .form-grid { align-items: start; }
+.sms-compose { position: sticky; bottom: 0; z-index: 1; }
+.creditor-letter-group > summary, .admin-details > summary { user-select: none; }
