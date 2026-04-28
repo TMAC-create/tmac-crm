@@ -24,94 +24,7 @@ type TaskItem = {
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
   createdAt: string;
   updatedAt: string;
-  client?: {
-    id: string;
-    reference?: number | null;
-    title?: string | null;
-    firstName: string;
-    lastName: string;
-    email?: string | null;
-    mobile?: string | null;
-    status?: string | null;
-  } | null;
 };
-type ManualTaskForm = {
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-};
-
-const emptyManualTaskForm: ManualTaskForm = {
-  title: '',
-  description: '',
-  date: '',
-  time: '',
-  priority: 'MEDIUM',
-};
-
-type TemplateType = 'SMS' | 'EMAIL';
-
-type MessageTemplate = {
-  id: string;
-  name: string;
-  type: TemplateType;
-  subject?: string | null;
-  body: string;
-  active: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type TemplateForm = {
-  name: string;
-  type: TemplateType;
-  subject: string;
-  body: string;
-  active: boolean;
-};
-
-const emptyTemplateForm: TemplateForm = {
-  name: '',
-  type: 'SMS',
-  subject: '',
-  body: '',
-  active: true,
-};
-
-type SmsComposerState = {
-  open: boolean;
-  templateId: string;
-  message: string;
-  sending: boolean;
-};
-
-const emptySmsComposer: SmsComposerState = {
-  open: false,
-  templateId: '',
-  message: '',
-  sending: false,
-};
-
-type SmsMessage = {
-  id: string;
-  clientId?: string | null;
-  templateId?: string | null;
-  direction: 'INBOUND' | 'OUTBOUND';
-  fromNumber?: string | null;
-  toNumber?: string | null;
-  fromName?: string | null;
-  body: string;
-  status?: string | null;
-  provider?: string | null;
-  providerMessageId?: string | null;
-  readAt?: string | null;
-  receivedAt?: string | null;
-  createdAt: string;
-};
-
-type AdminSection = 'templates' | 'creditors' | null;
 type DebtItem = {
   id: string;
   creditorName: string;
@@ -192,7 +105,6 @@ type ClientTab =
   | 'loan'
   | 'documents'
   | 'tasks'
-  | 'sms'
   | 'notes'
   | 'activity';
 
@@ -432,9 +344,6 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
-const [showTaskModal, setShowTaskModal] = useState(false);
-const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
-const [manualTaskForm, setManualTaskForm] = useState<ManualTaskForm>(emptyManualTaskForm);
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -447,43 +356,11 @@ const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
 const [globalTasks, setGlobalTasks] = useState<TaskItem[]>([]);
 const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
-const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-const [templateForm, setTemplateForm] = useState<TemplateForm>(emptyTemplateForm);
-const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-const [templateFilter, setTemplateFilter] = useState<TemplateType>('SMS');
-const [openAdminSection, setOpenAdminSection] = useState<AdminSection>(null);
-const [smsComposer, setSmsComposer] = useState<SmsComposerState>(emptySmsComposer);
-const [smsMessages, setSmsMessages] = useState<SmsMessage[]>([]);
-const [unreadSmsCount, setUnreadSmsCount] = useState(0);
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
   localStorage.setItem('tmac-creditor-master-list', JSON.stringify(creditorMasterList));
 }, [creditorMasterList]);
-
-useEffect(() => {
-  if (isLoggedIn && view === 'tasks') {
-    void loadGlobalTasks();
-  }
-}, [isLoggedIn, view]);
-
-useEffect(() => {
-  if (isLoggedIn && view === 'admin') {
-    void loadTemplates();
-  }
-}, [isLoggedIn, view]);
-
-useEffect(() => {
-  if (isLoggedIn) {
-    void loadUnreadSmsCount();
-  }
-}, [isLoggedIn]);
-
-useEffect(() => {
-  if (selectedClientId && clientTab === 'sms') {
-    void loadClientSmsMessages(selectedClientId, true);
-  }
-}, [selectedClientId, clientTab]);
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
@@ -709,7 +586,6 @@ function maxLoanAtLtv(targetLtv: number) {
     const data = await response.json();
     setToken(data.token);
     await loadClients(data.token);
-    await loadTemplates(data.token);
     setView('dashboard');
   }
 
@@ -808,11 +684,9 @@ setCreditorSearch('');
     setShowAddClient(false);
     setSuccess('');
     setError('');
-    setView('clients');
     await loadClientDetail(client.id);
     await loadClientDocuments(client.id);
     await loadClientTasks(client.id);
-    await loadClientSmsMessages(client.id, false);
   }
 
   function closeClientRecord() {
@@ -820,7 +694,6 @@ setCreditorSearch('');
     setSelectedClient(null);
     setClientTab('overview');
     setNewNote('');
-    setSmsMessages([]);
     setSuccess('');
     setError('');
   }
@@ -864,13 +737,15 @@ setCreditorSearch('');
   },
   body: JSON.stringify({
     ...editForm,
-   metadataJson: {
-  income: incomeForm,
-  expenditure: expenditureForm,
-  debts,
-  loan: loanForm,
-  callback: callbackForm,
-},
+    clientSalary: incomeForm.clientSalary || '',
+    propertyValue: loanForm.propertyValue || '',
+    metadataJson: {
+      income: incomeForm,
+      expenditure: expenditureForm,
+      debts,
+      loan: loanForm,
+      callback: callbackForm,
+    },
   }),
 });
 
@@ -881,7 +756,6 @@ setCreditorSearch('');
 
   await loadClients();
   await loadClientDetail(selectedClientId);
-  await loadClientTasks(selectedClientId);
   setSuccess('Client updated successfully.');
 }
 
@@ -960,231 +834,6 @@ function updateDebtForm(field: keyof DebtItem, value: string) {
 
 function updateLoanForm(field: keyof LoanData, value: string) {
   setLoanForm((prev) => ({ ...prev, [field]: value }));
-}
-
-async function loadTemplates(activeToken = token) {
-  const response = await fetch(`${API_URL}/templates`, {
-    headers: { Authorization: `Bearer ${activeToken}` },
-  });
-
-  if (!response.ok) {
-    setError('Could not load templates.');
-    return;
-  }
-
-  const data = await response.json();
-  setTemplates(data);
-}
-
-function resetTemplateForm(type: TemplateType = templateFilter) {
-  setEditingTemplateId(null);
-  setTemplateForm({ ...emptyTemplateForm, type, subject: '' });
-}
-
-function editTemplate(template: MessageTemplate) {
-  setTemplateFilter(template.type);
-  setOpenAdminSection('templates');
-  setEditingTemplateId(template.id);
-  setTemplateForm({
-    name: template.name,
-    type: template.type,
-    subject: template.subject || '',
-    body: template.body,
-    active: template.active,
-  });
-}
-
-async function saveTemplate() {
-  if (!templateForm.name.trim()) {
-    setError('Please enter a template name.');
-    return;
-  }
-
-  if (!templateForm.body.trim()) {
-    setError('Please enter template content.');
-    return;
-  }
-
-  setError('');
-  setSuccess('');
-
-  const payload = {
-    name: templateForm.name.trim(),
-    type: templateForm.type,
-    subject: templateForm.type === 'EMAIL' ? templateForm.subject.trim() : '',
-    body: templateForm.body,
-    active: templateForm.active,
-  };
-
-  const response = await fetch(
-    editingTemplateId ? `${API_URL}/templates/${editingTemplateId}` : `${API_URL}/templates`,
-    {
-      method: editingTemplateId ? 'PUT' : 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-
-  if (!response.ok) {
-    setError('Could not save template.');
-    return;
-  }
-
-  await loadTemplates();
-  resetTemplateForm(templateForm.type);
-  setSuccess(editingTemplateId ? 'Template updated successfully.' : 'Template added successfully.');
-}
-
-async function deleteTemplate(id: string) {
-  const confirmed = window.confirm('Delete this template?');
-  if (!confirmed) return;
-
-  const response = await fetch(`${API_URL}/templates/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    setError('Could not delete template.');
-    return;
-  }
-
-  if (editingTemplateId === id) resetTemplateForm(templateFilter);
-  await loadTemplates();
-  setSuccess('Template deleted successfully.');
-}
-
-function smsTemplatesForComposer() {
-  return templates.filter((template) => template.type === 'SMS' && template.active);
-}
-
-function mergeClientMessageTemplate(body: string, client: Client) {
-  const values: Record<string, string> = {
-    firstName: client.firstName || '',
-    lastName: client.lastName || '',
-    fullName: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
-    title: client.title || '',
-    reference: client.reference ? String(client.reference) : '',
-    email: client.email || '',
-    mobile: client.mobile || '',
-    postcode: client.postcode || '',
-  };
-
-  return body.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, rawKey: string) => {
-    const key = rawKey.trim();
-    return values[key] ?? '';
-  });
-}
-
-async function openSmsComposer() {
-  if (!selectedClient) return;
-
-  setError('');
-  setSuccess('');
-
-  if (!selectedClient.mobile) {
-    setError('This client does not have a mobile number saved.');
-    return;
-  }
-
-  if (templates.length === 0) {
-    await loadTemplates();
-  }
-
-  const availableSmsTemplates = templates.filter((template) => template.type === 'SMS' && template.active);
-  const firstTemplate = availableSmsTemplates[0];
-
-  setSmsComposer({
-    open: true,
-    templateId: firstTemplate?.id || '',
-    message: firstTemplate ? mergeClientMessageTemplate(firstTemplate.body, selectedClient) : '',
-    sending: false,
-  });
-}
-
-function updateSmsTemplate(templateId: string) {
-  const template = templates.find((item) => item.id === templateId);
-  setSmsComposer((prev) => ({
-    ...prev,
-    templateId,
-    message: template && selectedClient ? mergeClientMessageTemplate(template.body, selectedClient) : prev.message,
-  }));
-}
-
-async function sendSmsMessage() {
-  if (!selectedClient) return;
-
-  if (!smsComposer.message.trim()) {
-    setError('Please enter an SMS message before sending.');
-    return;
-  }
-
-  setError('');
-  setSuccess('');
-  setSmsComposer((prev) => ({ ...prev, sending: true }));
-
-  const response = await fetch(`${API_URL}/messages/sms`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      clientId: selectedClient.id,
-      templateId: smsComposer.templateId || undefined,
-      body: smsComposer.message,
-    }),
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    setSmsComposer((prev) => ({ ...prev, sending: false }));
-    setError(payload.message || 'Could not send SMS.');
-    return;
-  }
-
-  setSmsComposer(emptySmsComposer);
-  await loadClientDetail(selectedClient.id);
-  await loadClientSmsMessages(selectedClient.id, false);
-  await loadUnreadSmsCount();
-  setSuccess('SMS sent successfully.');
-}
-
-async function loadUnreadSmsCount() {
-  if (!token) return;
-
-  const response = await fetch(`${API_URL}/messages/unread-count`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) return;
-
-  const data = await response.json();
-  setUnreadSmsCount(Number(data.count || 0));
-}
-
-async function loadClientSmsMessages(clientId: string, markRead: boolean) {
-  if (!token) return;
-
-  const response = await fetch(`${API_URL}/messages/client/${clientId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) return;
-
-  const data = await response.json();
-  setSmsMessages(data);
-
-  if (markRead) {
-    await fetch(`${API_URL}/messages/client/${clientId}/read`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    await loadUnreadSmsCount();
-  }
 }
 
 function resetDebtForm() {
@@ -1384,7 +1033,9 @@ async function downloadClientDocument(documentId: string, originalName: string) 
 }
 async function loadClientTasks(clientId: string) {
   const response = await fetch(`${API_URL}/tasks/client/${clientId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   if (!response.ok) return;
@@ -1393,120 +1044,18 @@ async function loadClientTasks(clientId: string) {
   setClientTasks(data);
 }
 
-async function loadGlobalTasks() {
+async function loadGlobalTasks(activeToken = token) {
   const response = await fetch(`${API_URL}/tasks/open`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${activeToken}` },
   });
 
   if (!response.ok) {
-    setGlobalTasks([]);
+    setError('Could not load global tasks.');
     return;
   }
 
   const data = await response.json();
   setGlobalTasks(data);
-}
-
-async function openClientFromTask(task: TaskItem) {
-  if (!task.clientId) return;
-  const knownClient = clients.find((client) => client.id === task.clientId);
-  setView('clients');
-  setShowAddClient(false);
-  setSuccess('');
-  setError('');
-
-  if (knownClient) {
-    await openClient(knownClient);
-    return;
-  }
-
-  await loadClientDetail(task.clientId);
-  await loadClientDocuments(task.clientId);
-  await loadClientTasks(task.clientId);
-}
-
-function taskDateTimeParts(value?: string | null) {
-  if (!value) return { date: '', time: '' };
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return { date: '', time: '' };
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` };
-}
-
-function buildTaskDueAt(date: string, time: string) {
-  if (!date || !time) return null;
-  return new Date(`${date}T${time}:00`).toISOString();
-}
-
-function openNewTaskModal() {
-  setEditingTask(null);
-  setManualTaskForm(emptyManualTaskForm);
-  setShowTaskModal(true);
-}
-
-function openEditTaskModal(task: TaskItem) {
-  const parts = taskDateTimeParts(task.dueAt);
-  setEditingTask(task);
-  setManualTaskForm({
-    title: task.title,
-    description: task.description || '',
-    date: parts.date,
-    time: parts.time,
-    priority: task.priority || 'MEDIUM',
-  });
-  setShowTaskModal(true);
-}
-
-async function saveManualTask() {
-  if (!selectedClientId) return;
-
-  const title = manualTaskForm.title.trim();
-  if (!title) {
-    setError('Task title is required.');
-    return;
-  }
-
-  setError('');
-  setSuccess('');
-
-  const dueAt = buildTaskDueAt(manualTaskForm.date, manualTaskForm.time);
-  const url = editingTask ? `${API_URL}/tasks/${editingTask.id}` : `${API_URL}/tasks`;
-
-  const response = await fetch(url, {
-    method: editingTask ? 'PATCH' : 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      clientId: selectedClientId,
-      title,
-      description: manualTaskForm.description || null,
-      dueAt,
-      priority: manualTaskForm.priority,
-      status: 'OPEN',
-      outcome: null,
-    }),
-  });
-
-  if (!response.ok) {
-    setError(editingTask ? 'Could not update task.' : 'Could not create task.');
-    return;
-  }
-
-  setShowTaskModal(false);
-  setEditingTask(null);
-  setManualTaskForm(emptyManualTaskForm);
-  await loadClientTasks(selectedClientId);
-  await loadClientDetail(selectedClientId);
-  await loadGlobalTasks();
-  setSuccess(editingTask ? 'Task updated successfully.' : 'Task created successfully.');
 }
 
 async function updateClientTaskStatus(
@@ -1530,12 +1079,40 @@ async function updateClientTaskStatus(
 
   if (selectedClientId) {
     await loadClientTasks(selectedClientId);
-    await loadClientDetail(selectedClientId);
   }
   await loadGlobalTasks();
 }
 
+async function createClientTask(
+  title: string,
+  description: string,
+  dueAt?: string
+) {
+  if (!selectedClientId) return;
 
+  const response = await fetch(`${API_URL}/tasks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      clientId: selectedClientId,
+      title,
+      description,
+      dueAt: dueAt || null,
+    }),
+  });
+
+  if (!response.ok) {
+    setError('Could not create task.');
+    return;
+  }
+
+  await loadClientTasks(selectedClientId);
+  await loadGlobalTasks();
+  setSuccess('Task created successfully.');
+}
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB');
 }
@@ -1561,6 +1138,95 @@ function formatDateTime(value: string) {
     if (!value) return 'Not set';
     return new Date(value).toLocaleDateString('en-GB');
   }
+
+
+function getTaskBucket(task: TaskItem): 'overdue' | 'today' | 'upcoming' | 'none' {
+  if (!task.dueAt) return 'none';
+
+  const due = new Date(task.dueAt);
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startTomorrow = new Date(startToday);
+  startTomorrow.setDate(startTomorrow.getDate() + 1);
+
+  if (due < startToday) return 'overdue';
+  if (due >= startToday && due < startTomorrow) return 'today';
+  return 'upcoming';
+}
+
+function renderGlobalTaskSection(title: string, tasks: TaskItem[]) {
+  return (
+    <section className="global-task-section">
+      <div className="table-header">
+        <h3>{title}</h3>
+        <span>{tasks.length} tasks</span>
+      </div>
+
+      {tasks.length === 0 ? (
+        <p className="task-empty">No tasks in this section.</p>
+      ) : (
+        <div className="task-list">
+          {tasks.map((task) => (
+            <div className="task-card" key={task.id}>
+              <div className="task-card-top">
+                <div>
+                  <div className="global-task-client">Client task</div>
+                  <strong>{task.title}</strong>
+                  {task.description && <p>{task.description}</p>}
+                </div>
+                <span className={`pill priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
+              </div>
+              <div className="task-meta">
+                Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}
+              </div>
+              <div className="task-actions">
+                <button className="small-button primary" onClick={() => updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}>
+                  Complete
+                </button>
+                <button className="small-button secondary" onClick={() => updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
+                  No answer
+                </button>
+                <button className="small-button danger-button" onClick={() => updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function renderGlobalTasks() {
+  const openTasks = globalTasks.filter((task) => task.status === 'OPEN');
+  const overdue = openTasks.filter((task) => getTaskBucket(task) === 'overdue');
+  const today = openTasks.filter((task) => getTaskBucket(task) === 'today');
+  const upcoming = openTasks.filter((task) => getTaskBucket(task) === 'upcoming');
+  const none = openTasks.filter((task) => getTaskBucket(task) === 'none');
+
+  return (
+    <>
+      <header className="page-header">
+        <div>
+          <div className="eyebrow dark">Task Management</div>
+          <h2>Open tasks</h2>
+          <p>All outstanding client tasks, grouped by urgency.</p>
+        </div>
+        <button className="secondary" onClick={() => loadGlobalTasks()}>
+          Refresh tasks
+        </button>
+      </header>
+
+      <div className="global-task-board">
+        {renderGlobalTaskSection('Overdue', overdue)}
+        {renderGlobalTaskSection('Due today', today)}
+        {renderGlobalTaskSection('Upcoming', upcoming)}
+        {renderGlobalTaskSection('No due date', none)}
+      </div>
+    </>
+  );
+}
 
   function renderDashboard() {
     const now = new Date();
@@ -1801,20 +1467,103 @@ function formatDateTime(value: string) {
                 <input type="date" value={clientForm.dob} onChange={(e) => updateClientForm('dob', e.target.value)} />
               </div>
               <div>
-                <label>Status</label>
-                <select value={clientForm.status} onChange={(e) => updateClientForm('status', e.target.value)}>
-                  <option value="NEW_LEAD">New Lead</option>
-                  <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
-                  <option value="CALL_BACK">Call Back</option>
-                  <option value="QUALIFIED">Qualified</option>
-                  <option value="DOCS_REQUESTED">Docs Requested</option>
-                  <option value="DOCS_RECEIVED">Docs Received</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="LOST">Lost</option>
-                </select>
-              </div>
+  <label>Status</label>
+  <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
+    <option value="NEW_LEAD">New Lead</option>
+    <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
+    <option value="CALL_BACK">Call Back</option>
+    <option value="QUALIFIED">Qualified</option>
+    <option value="DOCS_REQUESTED">Docs Requested</option>
+    <option value="DOCS_RECEIVED">Docs Received</option>
+    <option value="SUBMITTED">Submitted</option>
+    <option value="APPROVED">Approved</option>
+    <option value="COMPLETED">Completed</option>
+    <option value="LOST">Lost</option>
+  </select>
+</div>
+
+{editForm.status === 'CALL_BACK' && (
+  <div className="callback-booking-panel full-width">
+    <h4>Callback booking</h4>
+
+    <div className="callback-grid">
+      <div>
+        <label>Callback date</label>
+        <input
+          type="date"
+          value={callbackForm.date}
+          onChange={(e) =>
+            setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
+          }
+        />
+      </div>
+
+      <div>
+        <label>Callback time</label>
+        <input
+          type="time"
+          value={callbackForm.time}
+          onChange={(e) =>
+            setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
+          }
+        />
+      </div>
+    </div>
+
+    <div>
+      <label>Callback notes</label>
+      <textarea
+        rows={3}
+        value={callbackForm.notes}
+        onChange={(e) =>
+          setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
+        }
+        placeholder="Add callback notes or appointment details"
+      />
+    </div>
+  </div>
+)}
+              {clientForm.status === 'CALL_BACK' && (
+  <div className="callback-booking-panel">
+    <h4>Callback booking</h4>
+
+    <div className="callback-grid">
+      <div>
+        <label>Callback date</label>
+        <input
+          type="date"
+          value={callbackForm.date}
+          onChange={(e) =>
+            setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
+          }
+        />
+      </div>
+
+      <div>
+        <label>Callback time</label>
+        <input
+          type="time"
+          value={callbackForm.time}
+          onChange={(e) =>
+            setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
+          }
+        />
+      </div>
+    </div>
+
+    <div>
+      <label>Callback notes</label>
+      <textarea
+        rows={3}
+        value={callbackForm.notes}
+        onChange={(e) =>
+          setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
+        }
+        placeholder="Add callback notes or appointment details"
+      />
+    </div>
+  </div>
+)}
               <div className="full-width">
                 <label>Address line 1</label>
                 <input value={clientForm.addressLine1} onChange={(e) => updateClientForm('addressLine1', e.target.value)} />
@@ -2017,39 +1766,6 @@ function formatDateTime(value: string) {
                   <option value="COMPLETED">Completed</option>
                   <option value="LOST">Lost</option>
                 </select>
-
-              {editForm.status === 'CALL_BACK' && (
-                <div className="callback-booking-panel full-width">
-                  <h4>Callback booking</h4>
-                  <div className="callback-grid">
-                    <div>
-                      <label>Callback date</label>
-                      <input
-                        type="date"
-                        value={callbackForm.date}
-                        onChange={(e) => setCallbackForm((prev) => ({ ...prev, date: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label>Callback time</label>
-                      <input
-                        type="time"
-                        value={callbackForm.time}
-                        onChange={(e) => setCallbackForm((prev) => ({ ...prev, time: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label>Callback notes</label>
-                    <textarea
-                      rows={3}
-                      value={callbackForm.notes}
-                      onChange={(e) => setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Add callback notes or appointment details"
-                    />
-                  </div>
-                </div>
-              )}
               </div>
             </div>
           </section>
@@ -3138,13 +2854,22 @@ function renderTasksTab() {
       </div>
 
       <div className="form-actions" style={{ marginBottom: '16px' }}>
-        <button className="secondary" onClick={openNewTaskModal}>
-          Add task
+        <button
+          className="secondary"
+          onClick={() =>
+            void createClientTask(
+              'Manual follow-up',
+              'Follow up with client.',
+              undefined
+            )
+          }
+        >
+          Add quick task
         </button>
       </div>
 
       <div className="tasks-section">
-        <h4 style={{ marginBottom: '12px' }}>Open tasks</h4>
+        <h4>Open tasks</h4>
         {openTasks.length === 0 ? (
           <p className="muted-text">No open tasks.</p>
         ) : (
@@ -3166,22 +2891,34 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-actions">
-                  <button className="secondary small-button" onClick={() => openEditTaskModal(task)}>
-                    Edit
-                  </button>
-                  <button className="primary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}>
-                    Complete
-                  </button>
-                  <button className="secondary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
-                    No answer
-                  </button>
-                  <button className="secondary small-button" onClick={() => openEditTaskModal(task)}>
-                    Reschedule
-                  </button>
-                  <button className="danger-button small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
-                    Cancel
-                  </button>
-                </div>
+  <button
+    className="primary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}
+  >
+    Complete
+  </button>
+
+  <button
+    className="secondary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}
+  >
+    No answer
+  </button>
+
+  <button
+    className="secondary small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'RESCHEDULED')}
+  >
+    Rescheduled
+  </button>
+
+  <button
+    className="danger-button small-button"
+    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}
+  >
+    Cancel
+  </button>
+</div>
               </div>
             ))}
           </div>
@@ -3189,7 +2926,7 @@ function renderTasksTab() {
       </div>
 
       <div className="tasks-section" style={{ marginTop: '24px' }}>
-        <h4 style={{ marginBottom: '12px' }}>Completed tasks</h4>
+        <h4>Completed tasks</h4>
         {doneTasks.length === 0 ? (
           <p className="muted-text">No completed tasks yet.</p>
         ) : (
@@ -3217,96 +2954,6 @@ function renderTasksTab() {
     </section>
   );
 }
-
-function renderSmsTab() {
-  if (!selectedClient) return null;
-
-  const activeSmsTemplates = smsTemplatesForComposer();
-
-  return (
-    <section className="card premium-panel tab-panel sms-workspace">
-      <div className="sms-workspace-header">
-        <div>
-          <h3>SMS Messages</h3>
-          <p>Conversation history with {selectedClient.firstName} {selectedClient.lastName}. Replies from Esendex appear here.</p>
-        </div>
-        <div className="header-actions">
-          {unreadSmsCount > 0 && <span className="sms-unread-pill">{unreadSmsCount} unread</span>}
-          <button className="secondary" onClick={() => void loadClientSmsMessages(selectedClient.id, true)}>Refresh</button>
-        </div>
-      </div>
-
-      <div className="sms-thread">
-        {smsMessages.length === 0 ? (
-          <div className="sms-empty-state">
-            <strong>No SMS messages yet.</strong>
-            <span>Send a template or manual reply below to start the conversation.</span>
-          </div>
-        ) : (
-          smsMessages.map((message) => {
-            const direction = message.direction === 'INBOUND' ? 'inbound' : 'outbound';
-            return (
-              <div key={message.id} className={`sms-bubble-row ${direction}`}>
-                <div className={`sms-bubble ${direction}`}>
-                  <div className="sms-bubble-meta">
-                    <strong>{message.direction === 'INBOUND' ? selectedClient.firstName : 'TMAC'}</strong>
-                    <span>{formatDateTime(message.receivedAt || message.createdAt)}</span>
-                  </div>
-                  <p>{message.body}</p>
-                  <small>{message.direction === 'INBOUND' ? 'Received' : (message.status || 'Sent')}</small>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <section className="sms-reply-card">
-        <div className="table-header">
-          <div>
-            <h4>Reply by SMS</h4>
-            <span>{selectedClient.mobile || 'No mobile saved'}</span>
-          </div>
-        </div>
-
-        <div className="modal-form">
-          <div>
-            <label>SMS template</label>
-            <select value={smsComposer.templateId} onChange={(e) => updateSmsTemplate(e.target.value)}>
-              <option value="">Write manually</option>
-              {activeSmsTemplates.map((template) => (
-                <option key={template.id} value={template.id}>{template.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label>Message</label>
-            <textarea
-              className="sms-compose-textarea"
-              value={smsComposer.message}
-              onChange={(e) => setSmsComposer((prev) => ({ ...prev, message: e.target.value }))}
-              placeholder="Type your SMS message..."
-              rows={6}
-            />
-            <div className="sms-compose-meta">
-              <span>{smsComposer.message.length} characters</span>
-              <span>{'{{firstName}}'} {'{{lastName}}'} {'{{reference}}'}</span>
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button className="secondary" onClick={() => setSmsComposer((prev) => ({ ...prev, templateId: '', message: '' }))}>Clear</button>
-            <button className="primary" disabled={smsComposer.sending || !selectedClient.mobile} onClick={() => void sendSmsMessage()}>
-              {smsComposer.sending ? 'Sending...' : 'Send SMS'}
-            </button>
-          </div>
-        </div>
-      </section>
-    </section>
-  );
-}
-
 function renderNotesTab() {
   if (!selectedClient) return null;
 
@@ -3416,7 +3063,6 @@ function renderNotesTab() {
               ['loan', 'Loan'],
               ['documents', 'Documents'],
               ['tasks', 'Tasks'],
-              ['sms', unreadSmsCount > 0 ? `SMS (${unreadSmsCount})` : 'SMS'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -3439,7 +3085,6 @@ function renderNotesTab() {
             {clientTab === 'loan' && renderLoanTab()}
             {clientTab === 'documents' && renderDocumentsTab()}
             {clientTab === 'tasks' && renderTasksTab()}
-            {clientTab === 'sms' && renderSmsTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
@@ -3452,323 +3097,80 @@ function renderNotesTab() {
   const sortedCreditors = [...creditorMasterList].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const smsTemplates = templates.filter((template) => template.type === 'SMS');
-  const emailTemplates = templates.filter((template) => template.type === 'EMAIL');
-  const visibleTemplates = templates.filter((template) => template.type === templateFilter);
-
-  const openSection = (section: Exclude<AdminSection, null>) => {
-    setOpenAdminSection((current) => (current === section ? null : section));
-  };
-
-  return (
-    <>
-      <header className="page-header premium-header admin-hero-header">
-        <div>
-          <div className="eyebrow">Administration</div>
-          <h2>Admin control centre</h2>
-          <p>Manage reusable templates, message content and creditor configuration.</p>
-        </div>
-      </header>
-
-      <section className="admin-overview-grid">
-        <div className="card admin-overview-card">
-          <span>SMS Templates</span>
-          <strong>{smsTemplates.length}</strong>
-          <small>Short message templates for client updates and chasers.</small>
-        </div>
-        <div className="card admin-overview-card">
-          <span>Email Templates</span>
-          <strong>{emailTemplates.length}</strong>
-          <small>Email content with optional subject lines.</small>
-        </div>
-        <div className="card admin-overview-card">
-          <span>Creditors</span>
-          <strong>{sortedCreditors.length}</strong>
-          <small>Master creditor list used in debt entry.</small>
-        </div>
-      </section>
-
-      <section className="admin-module-grid">
-        <button className={`admin-module-card ${openAdminSection === 'templates' ? 'active' : ''}`} onClick={() => openSection('templates')}>
-          <div>
-            <span className="eyebrow dark">Message content</span>
-            <strong>Templates</strong>
-            <small>SMS and email templates used across the CRM.</small>
-          </div>
-          <span>{openAdminSection === 'templates' ? 'Close' : 'Open'}</span>
-        </button>
-
-        <button className={`admin-module-card ${openAdminSection === 'creditors' ? 'active' : ''}`} onClick={() => openSection('creditors')}>
-          <div>
-            <span className="eyebrow dark">Configuration</span>
-            <strong>Creditor Master List</strong>
-            <small>{sortedCreditors.length} creditors saved.</small>
-          </div>
-          <span>{openAdminSection === 'creditors' ? 'Close' : 'Open'}</span>
-        </button>
-      </section>
-
-      {openAdminSection === 'templates' && (
-        <section className="card premium-panel tab-panel admin-module-panel">
-          <div className="table-header admin-section-heading">
-            <div>
-              <h3>Templates</h3>
-              <p>Create and manage reusable SMS and email messages.</p>
-            </div>
-            <button className="secondary" onClick={() => setOpenAdminSection(null)}>Close section</button>
-          </div>
-
-          <div className="admin-template-tabs">
-            <button className={templateFilter === 'SMS' ? 'primary' : 'secondary'} onClick={() => { setTemplateFilter('SMS'); resetTemplateForm('SMS'); }}>
-              SMS Templates
-            </button>
-            <button className={templateFilter === 'EMAIL' ? 'primary' : 'secondary'} onClick={() => { setTemplateFilter('EMAIL'); resetTemplateForm('EMAIL'); }}>
-              Email Templates
-            </button>
-          </div>
-
-          <div className="admin-template-layout">
-            <section className="detail-section template-editor-card">
-              <div className="table-header">
-                <h4>{editingTemplateId ? 'Edit template' : `Add ${templateFilter === 'SMS' ? 'SMS' : 'email'} template`}</h4>
-                {editingTemplateId && <button className="secondary" onClick={() => resetTemplateForm(templateFilter)}>Cancel edit</button>}
-              </div>
-
-              <div className="form-grid">
-                <div>
-                  <label>Template type</label>
-                  <select value={templateForm.type} onChange={(e) => { const nextType = e.target.value as TemplateType; setTemplateFilter(nextType); setTemplateForm((prev) => ({ ...prev, type: nextType, subject: nextType === 'SMS' ? '' : prev.subject })); }}>
-                    <option value="SMS">SMS</option>
-                    <option value="EMAIL">Email</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label>Template name</label>
-                  <input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="e.g. Initial document chase" />
-                </div>
-
-                {templateForm.type === 'EMAIL' && (
-                  <div className="full-width">
-                    <label>Email subject</label>
-                    <input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} placeholder="e.g. Documents needed for your application" />
-                  </div>
-                )}
-
-                <div className="full-width">
-                  <label>{templateForm.type === 'SMS' ? 'SMS message' : 'Email body'}</label>
-                  <textarea className="template-body-input" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} placeholder={templateForm.type === 'SMS' ? 'Hi {{firstName}}, just checking in from TMAC...' : 'Hi {{firstName}},\n\nPlease send over...'} />
-                </div>
-
-                <label className="template-active-toggle full-width">
-                  <input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} />
-                  Active template
-                </label>
-              </div>
-
-              <div className="form-actions">
-                <button className="secondary" onClick={() => resetTemplateForm(templateFilter)}>Clear</button>
-                <button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Save template'}</button>
-              </div>
-            </section>
-
-            <section className="detail-section template-list-card">
-              <div className="table-header">
-                <div>
-                  <h4>{templateFilter === 'SMS' ? 'SMS templates' : 'Email templates'}</h4>
-                  <span>{visibleTemplates.length} saved</span>
-                </div>
-              </div>
-
-              <div className="template-card-list">
-                {visibleTemplates.length === 0 ? (
-                  <p className="muted-text">No templates saved yet.</p>
-                ) : (
-                  visibleTemplates.map((template) => (
-                    <div key={template.id} className="template-card">
-                      <div className="template-card-top">
-                        <div>
-                          <strong>{template.name}</strong>
-                          <span>{template.type === 'SMS' ? 'SMS' : 'Email'} template</span>
-                        </div>
-                        <span className={`template-status ${template.active ? 'active' : 'inactive'}`}>{template.active ? 'Active' : 'Inactive'}</span>
-                      </div>
-                      {template.subject && <p className="template-subject">Subject: {template.subject}</p>}
-                      <p className="template-preview">{template.body}</p>
-                      <div className="debt-actions">
-                        <button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button>
-                        <button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-        </section>
-      )}
-
-      {openAdminSection === 'creditors' && (
-        <section className="card premium-panel tab-panel admin-module-panel">
-          <div className="table-header admin-section-heading">
-            <div>
-              <h3>Creditor Master List</h3>
-              <p>Manage the creditor list used in the debts and creditors tab.</p>
-            </div>
-            <button className="secondary" onClick={() => setOpenAdminSection(null)}>Close section</button>
-          </div>
-
-          <div className="admin-template-layout">
-            <section className="detail-section template-editor-card">
-              <div className="table-header">
-                <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
-                {editingCreditorId && <button className="secondary" onClick={resetCreditorAdminForm}>Cancel edit</button>}
-              </div>
-
-              <div className="form-grid">
-                <div className="full-width">
-                  <label>Creditor name</label>
-                  <input value={creditorAdminName} onChange={(e) => setCreditorAdminName(e.target.value)} placeholder="Enter creditor name" />
-                </div>
-              </div>
-
-              <div className="form-actions">
-                <button className="secondary" onClick={resetCreditorAdminForm}>Clear</button>
-                <button className="primary" onClick={addOrUpdateCreditor}>{editingCreditorId ? 'Update creditor' : 'Add creditor'}</button>
-              </div>
-            </section>
-
-            <section className="detail-section template-list-card">
-              <div className="table-header">
-                <h4>Saved creditors</h4>
-                <span>{sortedCreditors.length} creditors</span>
-              </div>
-
-              <div className="creditor-admin-list">
-                {sortedCreditors.map((item) => (
-                  <div key={item.id} className="creditor-admin-item">
-                    <strong>{item.name}</strong>
-                    <div className="debt-actions">
-                      <button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button>
-                      <button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </section>
-      )}
-    </>
-  );
- }
-
-
-function taskGroup(task: TaskItem) {
-  if (!task.dueAt) return 'No due date';
-
-  const due = new Date(task.dueAt);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTomorrow = new Date(startOfToday);
-  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-
-  if (due < startOfToday) return 'Overdue';
-  if (due >= startOfToday && due < startOfTomorrow) return 'Due today';
-  return 'Upcoming';
-}
-
-function renderTaskCard(task: TaskItem, showClient: boolean) {
-  const clientName = task.client
-    ? `${task.client.reference ? `${task.client.reference} — ` : ''}${task.client.title ? `${task.client.title} ` : ''}${task.client.firstName} ${task.client.lastName}`
-    : 'Client not linked';
-
-  return (
-    <div key={task.id} className="task-card global-task-card">
-      <div className="task-card-top">
-        <div>
-          {showClient && <div className="global-task-client">{clientName}</div>}
-          <strong>{task.title}</strong>
-          <p>{task.description || 'No description'}</p>
-        </div>
-        <span className={`pill priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
-      </div>
-
-      <div className="task-meta">
-        <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
-      </div>
-
-      <div className="task-actions">
-        {showClient && (
-          <button className="secondary small-button" onClick={() => void openClientFromTask(task)}>
-            Open client
-          </button>
-        )}
-        <button className="primary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'COMPLETED')}>
-          Complete
-        </button>
-        <button className="secondary small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
-          No answer
-        </button>
-        <button className="danger-button small-button" onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function renderGlobalTasksPage() {
-  const groups = ['Overdue', 'Due today', 'Upcoming', 'No due date'] as const;
-  const grouped = groups.reduce<Record<(typeof groups)[number], TaskItem[]>>(
-    (acc, group) => {
-      acc[group] = [];
-      return acc;
-    },
-    {} as Record<(typeof groups)[number], TaskItem[]>
-  );
-
-  globalTasks.forEach((task) => {
-    const group = taskGroup(task) as (typeof groups)[number];
-    grouped[group].push(task);
-  });
 
   return (
     <>
       <header className="page-header premium-header">
         <div>
-          <div className="eyebrow">Task Management</div>
-          <h2>Open tasks</h2>
-          <p>All outstanding client tasks, grouped by urgency.</p>
-        </div>
-        <div className="header-actions">
-          <button className="secondary" onClick={() => void loadGlobalTasks()}>
-            Refresh tasks
-          </button>
+          <div className="eyebrow">Administration</div>
+          <h2>Creditor Master List</h2>
+          <p>Manage the creditor list used in the debts and creditors tab.</p>
         </div>
       </header>
 
-      <section className="global-task-board">
-        {groups.map((group) => (
-          <section key={group} className="card premium-panel global-task-section">
+      <section className="card premium-panel tab-panel">
+        <div className="detail-sections">
+          <section className="detail-section">
             <div className="table-header">
-              <h3>{group}</h3>
-              <span>{grouped[group].length} tasks</span>
+              <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
+              {editingCreditorId && (
+                <button className="secondary" onClick={resetCreditorAdminForm}>
+                  Cancel edit
+                </button>
+              )}
             </div>
 
-            {grouped[group].length === 0 ? (
-              <p className="muted-text">No tasks in this section.</p>
-            ) : (
-              <div className="task-list">
-                {grouped[group].map((task) => renderTaskCard(task, true))}
+            <div className="form-grid">
+              <div className="full-width">
+                <label>Creditor name</label>
+                <input
+                  value={creditorAdminName}
+                  onChange={(e) => setCreditorAdminName(e.target.value)}
+                  placeholder="Enter creditor name"
+                />
               </div>
-            )}
+            </div>
+
+            <div className="form-actions">
+              <button className="secondary" onClick={resetCreditorAdminForm}>
+                Clear
+              </button>
+              <button className="primary" onClick={addOrUpdateCreditor}>
+                {editingCreditorId ? 'Update creditor' : 'Add creditor'}
+              </button>
+            </div>
           </section>
-        ))}
+
+          <section className="detail-section">
+            <div className="table-header">
+              <h4>Master creditor list</h4>
+              <span>{sortedCreditors.length} creditors</span>
+            </div>
+
+            <div className="creditor-admin-list">
+              {sortedCreditors.map((item) => (
+                <div key={item.id} className="creditor-admin-item">
+                  <strong>{item.name}</strong>
+                  <div className="debt-actions">
+                    <button className="secondary small-button" onClick={() => editCreditor(item)}>
+                      Edit
+                    </button>
+                    <button
+                      className="danger-button small-button"
+                      onClick={() => deleteCreditor(item.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       </section>
     </>
   );
-}
+ }
 
 function renderPlaceholder(title: string) {
   return (
@@ -3799,7 +3201,6 @@ function renderPlaceholder(title: string) {
           </button>
           <button className={`nav-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => setView('tasks')}>
             Tasks
-            {unreadSmsCount > 0 && <span className="sms-nav-badge">{unreadSmsCount} SMS</span>}
           </button>
           <button className={`nav-item ${view === 'reporting' ? 'active' : ''}`} onClick={() => setView('reporting')}>
             Reporting
@@ -3816,7 +3217,6 @@ function renderPlaceholder(title: string) {
                 setClients([]);
                 setSelectedClientId(null);
                 setSelectedClient(null);
-                setGlobalTasks([]);
                 setView('dashboard');
                 setError('');
                 setSuccess('');
@@ -3849,127 +3249,12 @@ function renderPlaceholder(title: string) {
 
       {view === 'dashboard' && renderDashboard()}
       {view === 'clients' && (selectedClient ? renderClientRecord() : renderClientList())}
-      {view === 'tasks' && renderGlobalTasksPage()}
+      {view === 'tasks' && renderGlobalTasks()}
       {view === 'reporting' && renderPlaceholder('Reporting')}
       {view === 'admin' && renderAdminTab()}
     </>
   )}
 </main>
-      {smsComposer.open && selectedClient && (
-        <div className="modal-backdrop">
-          <div className="modal card sms-modal">
-            <div className="modal-header">
-              <div>
-                <h3>Send SMS</h3>
-                <p className="muted-text">To {selectedClient.mobile || 'No mobile number'} — {selectedClient.firstName} {selectedClient.lastName}</p>
-              </div>
-              <button className="ghost" onClick={() => setSmsComposer(emptySmsComposer)}>Close</button>
-            </div>
-
-            <div className="modal-form">
-              <div>
-                <label>SMS template</label>
-                <select value={smsComposer.templateId} onChange={(e) => updateSmsTemplate(e.target.value)}>
-                  <option value="">Write manually</option>
-                  {smsTemplatesForComposer().map((template) => (
-                    <option key={template.id} value={template.id}>{template.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label>Message</label>
-                <textarea
-                  className="sms-compose-textarea"
-                  value={smsComposer.message}
-                  onChange={(e) => setSmsComposer((prev) => ({ ...prev, message: e.target.value }))}
-                  placeholder="Type your SMS message..."
-                  rows={6}
-                />
-                <div className="sms-compose-meta">
-                  <span>{smsComposer.message.length} characters</span>
-                  <span>{'{{firstName}}'} {'{{lastName}}'} {'{{reference}}'}</span>
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button className="secondary" onClick={() => setSmsComposer(emptySmsComposer)}>Cancel</button>
-                <button className="primary" disabled={smsComposer.sending} onClick={() => void sendSmsMessage()}>
-                  {smsComposer.sending ? 'Sending...' : 'Send SMS'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {showTaskModal && (
-        <div className="modal-backdrop">
-          <div className="modal card">
-            <div className="modal-header">
-              <h3>{editingTask ? 'Edit task' : 'Add task'}</h3>
-              <button className="ghost" onClick={() => setShowTaskModal(false)}>Close</button>
-            </div>
-            <div className="modal-form">
-              <div>
-                <label>Task title</label>
-                <input
-                  value={manualTaskForm.title}
-                  onChange={(e) => setManualTaskForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Chase documents"
-                />
-              </div>
-              <div>
-                <label>Description</label>
-                <textarea
-                  value={manualTaskForm.description}
-                  onChange={(e) => setManualTaskForm((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="Add task notes"
-                  rows={3}
-                />
-              </div>
-              <div className="grid-2">
-                <div>
-                  <label>Due date</label>
-                  <input
-                    type="date"
-                    value={manualTaskForm.date}
-                    onChange={(e) => setManualTaskForm((prev) => ({ ...prev, date: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label>Due time</label>
-                  <input
-                    type="time"
-                    value={manualTaskForm.time}
-                    onChange={(e) => setManualTaskForm((prev) => ({ ...prev, time: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <label>Priority</label>
-                <select
-                  value={manualTaskForm.priority}
-                  onChange={(e) =>
-                    setManualTaskForm((prev) => ({
-                      ...prev,
-                      priority: e.target.value as ManualTaskForm['priority'],
-                    }))
-                  }
-                >
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                </select>
-              </div>
-              <div className="modal-actions">
-                <button className="secondary" onClick={() => setShowTaskModal(false)}>Cancel</button>
-                <button className="primary" onClick={() => void saveManualTask()}>Save task</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
 </div>
 );
 }
