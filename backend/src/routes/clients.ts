@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import type { OutlookEventIds } from '../services/outlook.js';
+import {
+  deleteOutlookCallbackEvents,
+  londonLocalToUtcDate,
+  upsertOutlookCallbackEvents,
+} from '../services/outlook.js';
 
 export const clientsRouter = Router();
 
@@ -37,19 +43,28 @@ const loanSchema = z.object({
   notes: z.string().optional().or(z.literal('')),
 });
 
+const callbackSchema = z
+  .object({
+    date: z.string().optional(),
+    time: z.string().optional(),
+    notes: z.string().optional(),
+    outlookEventIds: z
+      .object({
+        mike: z.string().optional(),
+        steven: z.string().optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
 const metadataSchema = z
   .object({
     income: z.record(z.string(), z.any()).optional(),
     expenditure: z.record(z.string(), z.any()).optional(),
     debts: z.array(debtItemSchema).optional(),
     loan: loanSchema.optional(),
-    callback: z
-      .object({
-        date: z.string().optional(),
-        time: z.string().optional(),
-        notes: z.string().optional(),
-      })
-      .optional(),
+    callback: callbackSchema,
+    manualTaskEvents: z.record(z.string(), z.any()).optional(),
   })
   .optional();
 
@@ -78,6 +93,32 @@ const updateClientSchema = clientSchema.partial();
 const noteSchema = z.object({
   body: z.string().min(1),
 });
+
+type CallbackMeta = {
+  date?: string;
+  time?: string;
+  notes?: string;
+  outlookEventIds?: OutlookEventIds;
+};
+
+function fallbackCallbackDate(): { date: string; time: string } {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
+  return { date: `${year}-${month}-${day}`, time: '10:00' };
+}
+
+function buildCallbackDueAt(date?: string, time?: string): Date {
+  if (date && time) {
+    const londonDate = londonLocalToUtcDate(date, time);
+    if (londonDate) return londonDate;
+  }
+
+  const fallback = fallbackCallbackDate();
+  return londonLocalToUtcDate(fallback.date, fallback.time) ?? new Date();
+}
 
 clientsRouter.use(requireAuth);
 
@@ -124,14 +165,8 @@ clientsRouter.post('/', async (req, res) => {
   const data = parsed.data;
 
   const clientsWithReference = await prisma.client.findMany({
-    where: {
-      reference: {
-        not: null,
-      },
-    },
-    orderBy: {
-      reference: 'desc',
-    },
+    where: { reference: { not: null } },
+    orderBy: { reference: 'desc' },
     take: 1,
   });
 
@@ -184,7 +219,25 @@ clientsRouter.patch('/:id', async (req, res) => {
     });
   }
 
-  const updated = await prisma.client.update({
+  const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+  if (!existing) {
+    return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const existingMetadata = ((existing.metadataJson ?? {}) as any) || {};
+  const incomingMetadata = parsed.data.metadataJson;
+  const mergedMetadata = incomingMetadata
+    ? {
+        ...existingMetadata,
+        ...incomingMetadata,
+        callback: {
+          ...(existingMetadata.callback ?? {}),
+          ...(incomingMetadata.callback ?? {}),
+        },
+      }
+    : existingMetadata;
+
+  let updated = await prisma.client.update({
     where: { id: req.params.id },
     data: {
       title: parsed.data.title ?? undefined,
@@ -203,110 +256,127 @@ clientsRouter.patch('/:id', async (req, res) => {
       status: parsed.data.status ?? undefined,
       clientSalary: parsed.data.clientSalary ?? undefined,
       propertyValue: parsed.data.propertyValue ?? undefined,
-      metadataJson: parsed.data.metadataJson ?? undefined,
+      metadataJson: incomingMetadata ? mergedMetadata : undefined,
     },
   });
 
   if (parsed.data.status === 'CALL_BACK') {
-  const callbackDate = parsed.data.metadataJson?.callback?.date;
-  const callbackTime = parsed.data.metadataJson?.callback?.time;
+    const callbackMeta = ((mergedMetadata.callback ?? {}) as CallbackMeta) || {};
+    const fallback = fallbackCallbackDate();
+    const callbackDate = callbackMeta.date || fallback.date;
+    const callbackTime = callbackMeta.time || fallback.time;
+    const callbackNotes = callbackMeta.notes || '';
+    const callbackDueAt = buildCallbackDueAt(callbackDate, callbackTime);
 
-  const callbackDueAt = new Date();
+    const eventIds = await upsertOutlookCallbackEvents({
+      client: updated,
+      callbackDate,
+      callbackTime,
+      notes: callbackNotes,
+      existingEventIds: callbackMeta.outlookEventIds,
+    });
 
-  if (callbackDate && callbackTime) {
-    callbackDueAt.setFullYear(
-      Number(callbackDate.slice(0, 4)),
-      Number(callbackDate.slice(5, 7)) - 1,
-      Number(callbackDate.slice(8, 10))
-    );
-    callbackDueAt.setHours(
-      Number(callbackTime.slice(0, 2)),
-      Number(callbackTime.slice(3, 5)),
-      0,
-      0
-    );
-  } else {
-    callbackDueAt.setDate(callbackDueAt.getDate() + 1);
-    callbackDueAt.setHours(10, 0, 0, 0);
+    const metadataWithCallback = {
+      ...mergedMetadata,
+      callback: {
+        ...callbackMeta,
+        date: callbackDate,
+        time: callbackTime,
+        notes: callbackNotes,
+        outlookEventIds: eventIds ?? callbackMeta.outlookEventIds ?? {},
+      },
+    };
+
+    updated = await prisma.client.update({
+      where: { id: updated.id },
+      data: { metadataJson: metadataWithCallback },
+    });
+
+    const existingOpenCallbackTasks = await prisma.task.findMany({
+      where: {
+        clientId: req.params.id,
+        status: 'OPEN',
+        title: { in: ['Client callback booked', 'Chase documents before callback'] },
+      },
+    });
+
+    const callbackTask = existingOpenCallbackTasks.find((task) => task.title === 'Client callback booked');
+    const chaseDocsTask = existingOpenCallbackTasks.find((task) => task.title === 'Chase documents before callback');
+
+    if (callbackTask) {
+      await prisma.task.update({
+        where: { id: callbackTask.id },
+        data: {
+          dueAt: callbackDueAt,
+          description: callbackNotes || 'Call client back at the scheduled appointment time.',
+          priority: 'HIGH',
+        },
+      });
+    } else {
+      await prisma.task.create({
+        data: {
+          clientId: req.params.id,
+          title: 'Client callback booked',
+          description: callbackNotes || 'Call client back at the scheduled appointment time.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'HIGH',
+        },
+      });
+    }
+
+    if (chaseDocsTask) {
+      await prisma.task.update({
+        where: { id: chaseDocsTask.id },
+        data: {
+          dueAt: callbackDueAt,
+          description: 'Check outstanding documents before the callback appointment.',
+          priority: 'MEDIUM',
+        },
+      });
+    } else {
+      await prisma.task.create({
+        data: {
+          clientId: req.params.id,
+          title: 'Chase documents before callback',
+          description: 'Check outstanding documents before the callback appointment.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'MEDIUM',
+        },
+      });
+    }
+  } else if (parsed.data.status && parsed.data.status !== 'CALL_BACK') {
+    const callbackMeta = ((existingMetadata.callback ?? {}) as CallbackMeta) || {};
+    if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
+      await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds);
+      await prisma.client.update({
+        where: { id: updated.id },
+        data: {
+          metadataJson: {
+            ...mergedMetadata,
+            callback: {
+              ...callbackMeta,
+              ...(incomingMetadata?.callback ?? {}),
+              outlookEventIds: {},
+            },
+          },
+        },
+      });
+    }
   }
 
-  const existingOpenCallbackTasks = await prisma.task.findMany({
-    where: {
-      clientId: req.params.id,
-      status: 'OPEN',
-      title: {
-        in: ['Client callback booked', 'Chase documents before callback'],
-      },
+  await prisma.activity.create({
+    data: {
+      clientId: updated.id,
+      type: 'client_updated',
+      description: `Client ${updated.firstName} ${updated.lastName} updated.`,
     },
   });
 
-  const callbackTask = existingOpenCallbackTasks.find(
-    (task) => task.title === 'Client callback booked'
-  );
-
-  const chaseDocsTask = existingOpenCallbackTasks.find(
-    (task) => task.title === 'Chase documents before callback'
-  );
-
-  if (callbackTask) {
-    await prisma.task.update({
-      where: { id: callbackTask.id },
-      data: {
-        dueAt: callbackDueAt,
-        description:
-          parsed.data.metadataJson?.callback?.notes ||
-          'Call client back at the scheduled appointment time.',
-        priority: 'HIGH',
-      },
-    });
-  } else {
-    await prisma.task.create({
-      data: {
-        clientId: req.params.id,
-        title: 'Client callback booked',
-        description:
-          parsed.data.metadataJson?.callback?.notes ||
-          'Call client back at the scheduled appointment time.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'HIGH',
-      },
-    });
-  }
-
-  if (chaseDocsTask) {
-    await prisma.task.update({
-      where: { id: chaseDocsTask.id },
-      data: {
-        dueAt: callbackDueAt,
-        description: 'Check outstanding documents before the callback appointment.',
-        priority: 'MEDIUM',
-      },
-    });
-  } else {
-    await prisma.task.create({
-      data: {
-        clientId: req.params.id,
-        title: 'Chase documents before callback',
-        description: 'Check outstanding documents before the callback appointment.',
-        dueAt: callbackDueAt,
-        status: 'OPEN',
-        priority: 'MEDIUM',
-      },
-    });
-  }
-}
-
-await prisma.activity.create({
-  data: {
-    clientId: updated.id,
-    type: 'client_updated',
-    description: `Client ${updated.firstName} ${updated.lastName} updated.`,
-  },
+  res.json(updated);
 });
 
-res.json(updated);
-});
 clientsRouter.post('/:id/notes', async (req, res) => {
   const parsed = noteSchema.safeParse(req.body);
 
@@ -351,6 +421,12 @@ clientsRouter.delete('/:id', async (req, res) => {
 
   if (!existing) {
     return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const metadata = ((existing.metadataJson ?? {}) as any) || {};
+  const callbackMeta = (metadata.callback ?? {}) as CallbackMeta;
+  if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
+    await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds);
   }
 
   await prisma.client.delete({
