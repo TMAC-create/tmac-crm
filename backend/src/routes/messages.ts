@@ -159,6 +159,20 @@ messagesRouter.get('/unread-count', async (_req, res) => {
   res.json({ count });
 });
 
+messagesRouter.get('/overview', async (_req, res) => {
+  const messages = await prisma.smsMessage.findMany({
+    orderBy: [{ createdAt: 'desc' }],
+    take: 200,
+    include: {
+      client: {
+        select: { id: true, reference: true, firstName: true, lastName: true, mobile: true },
+      },
+    },
+  });
+
+  res.json(messages);
+});
+
 messagesRouter.get('/client/:clientId', async (req, res) => {
   const messages = await prisma.smsMessage.findMany({
     where: { clientId: req.params.clientId },
