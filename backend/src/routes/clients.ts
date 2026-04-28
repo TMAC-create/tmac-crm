@@ -206,7 +206,64 @@ clientsRouter.post('/', async (req, res) => {
     },
   });
 
-  res.status(201).json(client);
+  let responseClient = client;
+
+  if (data.status === 'CALL_BACK') {
+    const metadata = ((client.metadataJson ?? {}) as any) || {};
+    const callbackMeta = ((metadata.callback ?? {}) as CallbackMeta) || {};
+    const fallback = fallbackCallbackDate();
+    const callbackDate = callbackMeta.date || fallback.date;
+    const callbackTime = callbackMeta.time || fallback.time;
+    const callbackNotes = callbackMeta.notes || '';
+    const callbackDueAt = buildCallbackDueAt(callbackDate, callbackTime);
+
+    const eventIds = await upsertOutlookCallbackEvents({
+      client,
+      callbackDate,
+      callbackTime,
+      notes: callbackNotes,
+      existingEventIds: callbackMeta.outlookEventIds,
+    });
+
+    responseClient = await prisma.client.update({
+      where: { id: client.id },
+      data: {
+        metadataJson: {
+          ...metadata,
+          callback: {
+            ...callbackMeta,
+            date: callbackDate,
+            time: callbackTime,
+            notes: callbackNotes,
+            outlookEventIds: eventIds ?? callbackMeta.outlookEventIds ?? {},
+          },
+        },
+      },
+    });
+
+    await prisma.task.createMany({
+      data: [
+        {
+          clientId: client.id,
+          title: 'Client callback booked',
+          description: callbackNotes || 'Call client back at the scheduled appointment time.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'HIGH',
+        },
+        {
+          clientId: client.id,
+          title: 'Chase documents before callback',
+          description: 'Check outstanding documents before the callback appointment.',
+          dueAt: callbackDueAt,
+          status: 'OPEN',
+          priority: 'MEDIUM',
+        },
+      ],
+    });
+  }
+
+  res.status(201).json(responseClient);
 });
 
 clientsRouter.patch('/:id', async (req, res) => {
