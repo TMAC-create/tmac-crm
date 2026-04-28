@@ -100,7 +100,7 @@ async function removeCallbackOutlookForClient(clientId: string): Promise<void> {
 router.get('/open', async (_req, res) => {
   const tasks = await prisma.task.findMany({
     where: { status: 'OPEN' },
-    include: { client: true },
+    include: { client: { select: { id: true, reference: true, firstName: true, lastName: true, mobile: true } } },
     orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
   });
 
