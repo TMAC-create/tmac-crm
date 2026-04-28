@@ -38,6 +38,34 @@ type CreditorMasterItem = {
   id: string;
   name: string;
 };
+
+type TemplateItem = {
+  id: string;
+  name: string;
+  type: 'SMS' | 'EMAIL';
+  subject?: string | null;
+  body: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SmsMessageItem = {
+  id: string;
+  clientId?: string | null;
+  templateId?: string | null;
+  direction: 'INBOUND' | 'OUTBOUND' | string;
+  toNumber?: string | null;
+  fromNumber?: string | null;
+  fromName?: string | null;
+  body: string;
+  status: string;
+  provider: string;
+  providerMessageId?: string | null;
+  readAt?: string | null;
+  receivedAt?: string | null;
+  createdAt: string;
+};
 type LoanData = {
   initialLoanAmount: string;
   furtherAdvance: string;
@@ -105,6 +133,7 @@ type ClientTab =
   | 'loan'
   | 'documents'
   | 'tasks'
+  | 'sms'
   | 'notes'
   | 'activity';
 
@@ -356,6 +385,13 @@ const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
 const [globalTasks, setGlobalTasks] = useState<TaskItem[]>([]);
 const [uploadingSection, setUploadingSection] = useState<string | null>(null);
 const [newNote, setNewNote] = useState('');
+const [adminSection, setAdminSection] = useState<'templates' | 'creditors'>('templates');
+const [templates, setTemplates] = useState<TemplateItem[]>([]);
+const [templateForm, setTemplateForm] = useState({ name: '', type: 'SMS' as 'SMS' | 'EMAIL', subject: '', body: '', active: true });
+const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+const [smsMessages, setSmsMessages] = useState<SmsMessageItem[]>([]);
+const [smsBody, setSmsBody] = useState('');
+const [smsTemplateId, setSmsTemplateId] = useState('');
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -595,22 +631,17 @@ function maxLoanAtLtv(targetLtv: number) {
     });
 
     if (!response.ok) {
-  setError('Could not save client changes.');
-  return;
-}
-
-if (selectedClientId) {
-  await loadClientDetail(selectedClientId);
-  await loadClientTasks(selectedClientId);
-}
-
-setSuccess('Client updated successfully.');
+      setError('Could not load clients.');
+      return;
+    }
 
     const data = await response.json();
     setClients(data);
 
     if (selectedClientId) {
       await loadClientDetail(selectedClientId, activeToken);
+      await loadClientTasks(selectedClientId);
+      await loadClientMessages(selectedClientId, activeToken);
     }
   }
 
@@ -687,6 +718,8 @@ setCreditorSearch('');
     await loadClientDetail(client.id);
     await loadClientDocuments(client.id);
     await loadClientTasks(client.id);
+    await loadClientMessages(client.id);
+    await loadTemplates();
   }
 
   function closeClientRecord() {
@@ -694,6 +727,9 @@ setCreditorSearch('');
     setSelectedClient(null);
     setClientTab('overview');
     setNewNote('');
+    setSmsMessages([]);
+    setSmsBody('');
+    setSmsTemplateId('');
     setSuccess('');
     setError('');
   }
@@ -936,6 +972,70 @@ function deleteCreditor(id: string) {
   }
 
   setSuccess('Creditor removed successfully.');
+}
+
+function resetTemplateForm() {
+  setTemplateForm({ name: '', type: 'SMS', subject: '', body: '', active: true });
+  setEditingTemplateId(null);
+}
+
+function editTemplate(template: TemplateItem) {
+  setTemplateForm({ name: template.name, type: template.type, subject: template.subject || '', body: template.body, active: template.active });
+  setEditingTemplateId(template.id);
+  setSuccess('');
+  setError('');
+}
+
+async function loadTemplates(activeToken = token) {
+  if (!activeToken) return;
+  const response = await fetch(`${API_URL}/templates`, { headers: { Authorization: `Bearer ${activeToken}` } });
+  if (!response.ok) return;
+  setTemplates(await response.json());
+}
+
+async function saveTemplate() {
+  if (!templateForm.name.trim() || !templateForm.body.trim()) { setError('Please enter a template name and message body.'); return; }
+  setError(''); setSuccess('');
+  const response = await fetch(`${API_URL}/templates${editingTemplateId ? `/${editingTemplateId}` : ''}`, {
+    method: editingTemplateId ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(templateForm),
+  });
+  if (!response.ok) { setError('Could not save template.'); return; }
+  resetTemplateForm(); await loadTemplates(); setSuccess('Template saved successfully.');
+}
+
+async function deleteTemplate(id: string) {
+  const confirmed = window.confirm('Delete this template?'); if (!confirmed) return;
+  const response = await fetch(`${API_URL}/templates/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) { setError('Could not delete template.'); return; }
+  if (editingTemplateId === id) resetTemplateForm(); await loadTemplates(); setSuccess('Template deleted successfully.');
+}
+
+async function loadClientMessages(clientId: string, activeToken = token) {
+  if (!activeToken) return;
+  const response = await fetch(`${API_URL}/messages/client/${clientId}`, { headers: { Authorization: `Bearer ${activeToken}` } });
+  if (!response.ok) return;
+  setSmsMessages(await response.json());
+  await fetch(`${API_URL}/messages/client/${clientId}/read`, { method: 'PATCH', headers: { Authorization: `Bearer ${activeToken}` } }).catch(() => undefined);
+}
+
+async function sendSmsMessage() {
+  if (!selectedClientId || !smsBody.trim()) { setError('Please enter an SMS message.'); return; }
+  setError(''); setSuccess('');
+  const response = await fetch(`${API_URL}/messages/sms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ clientId: selectedClientId, templateId: smsTemplateId || undefined, body: smsBody }),
+  });
+  if (!response.ok) { const data = await response.json().catch(() => ({})); setError(data.message || 'Could not send SMS.'); return; }
+  setSmsBody(''); setSmsTemplateId(''); await loadClientMessages(selectedClientId); await loadClientDetail(selectedClientId); setSuccess('SMS sent successfully.');
+}
+
+function applySmsTemplate(templateId: string) {
+  setSmsTemplateId(templateId);
+  const template = templates.find((item) => item.id === templateId);
+  if (template) setSmsBody(template.body);
 }
 
 async function loadClientDocuments(clientId: string) {
@@ -2840,6 +2940,35 @@ function renderDocumentsTab() {
     </section>
   );
 }
+function renderSmsTab() {
+  const smsTemplates = templates.filter((template) => template.type === 'SMS' && template.active);
+  const unreadInbound = smsMessages.filter((message) => message.direction === 'INBOUND' && !message.readAt).length;
+
+  return (
+    <section className="sms-workspace">
+      <div className="sms-workspace-header">
+        <div><h3>SMS conversation</h3><p>Two-way Esendex conversation history for this client.</p></div>
+        {unreadInbound > 0 && <span className="sms-unread-pill">{unreadInbound} unread</span>}
+      </div>
+      <div className="sms-thread">
+        {smsMessages.length === 0 ? (<div className="sms-empty-state"><strong>No SMS messages yet</strong><span>Send a message below to start the client conversation.</span></div>) : (
+          smsMessages.map((message) => { const outbound = message.direction === 'OUTBOUND'; return (
+            <div key={message.id} className={`sms-bubble-row ${outbound ? 'outbound' : 'inbound'}`}><div className={`sms-bubble ${outbound ? 'outbound' : 'inbound'}`}><div className="sms-bubble-meta"><strong>{outbound ? 'TMAC' : message.fromNumber || 'Client'}</strong><span>{formatDateTime(message.receivedAt || message.createdAt)}</span></div><p>{message.body}</p><small>{message.status}</small></div></div>
+          ); })
+        )}
+      </div>
+      <section className="sms-reply-card">
+        <div className="form-grid">
+          <div><label>SMS template</label><select value={smsTemplateId} onChange={(e) => applySmsTemplate(e.target.value)}><option value="">No template</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
+          <div><label>Client mobile</label><input value={selectedClient?.mobile || 'No mobile number'} disabled /></div>
+          <div className="full-width"><label>Message</label><textarea rows={5} value={smsBody} onChange={(e) => setSmsBody(e.target.value)} placeholder="Type your SMS reply..." /></div>
+        </div>
+        <div className="form-actions"><button className="secondary" onClick={() => selectedClientId && loadClientMessages(selectedClientId)}>Refresh conversation</button><button className="primary" onClick={sendSmsMessage} disabled={!selectedClient?.mobile}>Send SMS</button></div>
+      </section>
+    </section>
+  );
+}
+
 function renderTasksTab() {
   if (!selectedClient) return null;
 
@@ -3063,6 +3192,7 @@ function renderNotesTab() {
               ['loan', 'Loan'],
               ['documents', 'Documents'],
               ['tasks', 'Tasks'],
+              ['sms', 'SMS'],
               ['notes', 'Notes'],
               ['activity', 'Activity'],
             ].map(([key, label]) => (
@@ -3085,6 +3215,7 @@ function renderNotesTab() {
             {clientTab === 'loan' && renderLoanTab()}
             {clientTab === 'documents' && renderDocumentsTab()}
             {clientTab === 'tasks' && renderTasksTab()}
+            {clientTab === 'sms' && renderSmsTab()}
             {clientTab === 'notes' && renderNotesTab()}
             {clientTab === 'activity' && renderActivityTab()}
           </div>
@@ -3094,80 +3225,15 @@ function renderNotesTab() {
   }
 
  function renderAdminTab() {
-  const sortedCreditors = [...creditorMasterList].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
-
+  const sortedCreditors = [...creditorMasterList].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTemplates = [...templates].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
   return (
     <>
-      <header className="page-header premium-header">
-        <div>
-          <div className="eyebrow">Administration</div>
-          <h2>Creditor Master List</h2>
-          <p>Manage the creditor list used in the debts and creditors tab.</p>
-        </div>
-      </header>
-
-      <section className="card premium-panel tab-panel">
-        <div className="detail-sections">
-          <section className="detail-section">
-            <div className="table-header">
-              <h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>
-              {editingCreditorId && (
-                <button className="secondary" onClick={resetCreditorAdminForm}>
-                  Cancel edit
-                </button>
-              )}
-            </div>
-
-            <div className="form-grid">
-              <div className="full-width">
-                <label>Creditor name</label>
-                <input
-                  value={creditorAdminName}
-                  onChange={(e) => setCreditorAdminName(e.target.value)}
-                  placeholder="Enter creditor name"
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button className="secondary" onClick={resetCreditorAdminForm}>
-                Clear
-              </button>
-              <button className="primary" onClick={addOrUpdateCreditor}>
-                {editingCreditorId ? 'Update creditor' : 'Add creditor'}
-              </button>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <div className="table-header">
-              <h4>Master creditor list</h4>
-              <span>{sortedCreditors.length} creditors</span>
-            </div>
-
-            <div className="creditor-admin-list">
-              {sortedCreditors.map((item) => (
-                <div key={item.id} className="creditor-admin-item">
-                  <strong>{item.name}</strong>
-                  <div className="debt-actions">
-                    <button className="secondary small-button" onClick={() => editCreditor(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="danger-button small-button"
-                      onClick={() => deleteCreditor(item.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </section>
+      <header className="page-header premium-header"><div><div className="eyebrow">Administration</div><h2>Admin</h2><p>Manage CRM templates and the creditor master list.</p></div></header>
+      <div className="admin-overview-grid"><div className="admin-overview-card"><span>SMS/Email templates</span><strong>{templates.length}</strong><small>Reusable client communication templates.</small></div><div className="admin-overview-card"><span>Creditors</span><strong>{sortedCreditors.length}</strong><small>Master list used inside debts and creditors.</small></div><div className="admin-overview-card"><span>Esendex</span><strong>Active</strong><small>Send route is wired; replies post to the Esendex webhook.</small></div></div>
+      <div className="admin-module-grid"><button className={`admin-module-card ${adminSection === 'templates' ? 'active' : ''}`} onClick={() => { setAdminSection('templates'); void loadTemplates(); }}><div><span>Communications</span><strong>Templates</strong><p>Create SMS and email templates for client contact.</p></div><span>Open</span></button><button className={`admin-module-card ${adminSection === 'creditors' ? 'active' : ''}`} onClick={() => setAdminSection('creditors')}><div><span>Debt data</span><strong>Creditor Master List</strong><p>Add, edit and remove creditors for the debt screen search.</p></div><span>Open</span></button></div>
+      {adminSection === 'templates' && (<section className="card premium-panel tab-panel admin-module-panel"><div className="detail-sections"><section className="detail-section"><div className="table-header"><h4>{editingTemplateId ? 'Edit template' : 'Add template'}</h4>{editingTemplateId && <button className="secondary" onClick={resetTemplateForm}>Cancel edit</button>}</div><div className="form-grid"><div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} /></div><div><label>Type</label><select value={templateForm.type} onChange={(e) => setTemplateForm((prev) => ({ ...prev, type: e.target.value as 'SMS' | 'EMAIL' }))}><option value="SMS">SMS</option><option value="EMAIL">Email</option></select></div>{templateForm.type === 'EMAIL' && <div className="full-width"><label>Email subject</label><input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} /></div>}<div className="full-width"><label>Body</label><textarea rows={8} value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} /></div><label className="checkbox-row"><input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} /> Active</label></div><div className="form-actions"><button className="secondary" onClick={resetTemplateForm}>Clear</button><button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Add template'}</button></div></section><section className="detail-section"><div className="table-header"><h4>Templates</h4><span>{sortedTemplates.length} templates</span></div><div className="creditor-admin-list">{sortedTemplates.map((template) => (<div key={template.id} className="creditor-admin-item"><div><strong>{template.name}</strong><small>{template.type} · {template.active ? 'Active' : 'Inactive'}</small></div><div className="debt-actions"><button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button><button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button></div></div>))}</div></section></div></section>)}
+      {adminSection === 'creditors' && (<section className="card premium-panel tab-panel admin-module-panel"><div className="detail-sections"><section className="detail-section"><div className="table-header"><h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>{editingCreditorId && <button className="secondary" onClick={resetCreditorAdminForm}>Cancel edit</button>}</div><div className="form-grid"><div className="full-width"><label>Creditor name</label><input value={creditorAdminName} onChange={(e) => setCreditorAdminName(e.target.value)} placeholder="Enter creditor name" /></div></div><div className="form-actions"><button className="secondary" onClick={resetCreditorAdminForm}>Clear</button><button className="primary" onClick={addOrUpdateCreditor}>{editingCreditorId ? 'Update creditor' : 'Add creditor'}</button></div></section><section className="detail-section"><div className="table-header"><h4>Master creditor list</h4><span>{sortedCreditors.length} creditors</span></div><div className="creditor-admin-list">{sortedCreditors.map((item) => (<div key={item.id} className="creditor-admin-item"><strong>{item.name}</strong><div className="debt-actions"><button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button><button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button></div></div>))}</div></section></div></section>)}
     </>
   );
  }
@@ -3199,13 +3265,13 @@ function renderPlaceholder(title: string) {
           <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}>
             Clients
           </button>
-          <button className={`nav-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => setView('tasks')}>
+          <button className={`nav-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => { setView('tasks'); void loadGlobalTasks(); }}>
             Tasks
           </button>
           <button className={`nav-item ${view === 'reporting' ? 'active' : ''}`} onClick={() => setView('reporting')}>
             Reporting
           </button>
-          <button className={`nav-item ${view === 'admin' ? 'active' : ''}`} onClick={() => setView('admin')}>
+          <button className={`nav-item ${view === 'admin' ? 'active' : ''}`} onClick={() => { setView('admin'); void loadTemplates(); }}>
             Admin
           </button>
 
