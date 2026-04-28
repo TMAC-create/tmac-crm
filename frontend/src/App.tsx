@@ -395,6 +395,7 @@ const [smsOverview, setSmsOverview] = useState<SmsMessageItem[]>([]);
 const [smsBody, setSmsBody] = useState('');
 const [selectedSmsTemplateId, setSelectedSmsTemplateId] = useState('');
 const [sendingSms, setSendingSms] = useState(false);
+const [taskForm, setTaskForm] = useState({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' as 'LOW' | 'MEDIUM' | 'HIGH' });
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -749,7 +750,12 @@ setCreditorSearch('');
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(clientForm),
+      body: JSON.stringify({
+        ...clientForm,
+        metadataJson: clientForm.status === 'CALL_BACK'
+          ? { callback: callbackForm }
+          : {},
+      }),
     });
 
     if (!response.ok) {
@@ -758,6 +764,7 @@ setCreditorSearch('');
     }
 
     setClientForm(emptyClientForm);
+    setCallbackForm({ date: '', time: '', notes: '' });
     setShowAddClient(false);
     await loadClients();
     setView('clients');
@@ -797,6 +804,8 @@ setCreditorSearch('');
 
   await loadClients();
   await loadClientDetail(selectedClientId);
+  await loadClientTasks(selectedClientId);
+  await loadGlobalTasks();
   setSuccess('Client updated successfully.');
 }
 
@@ -1154,6 +1163,58 @@ async function createClientTask(
   await loadGlobalTasks();
   setSuccess('Task created successfully.');
 }
+
+async function createManualTaskFromForm() {
+  if (!selectedClientId) return;
+  if (!taskForm.title.trim()) {
+    setError('Task title is required.');
+    return;
+  }
+  const dueAt = taskForm.date && taskForm.time ? `${taskForm.date}T${taskForm.time}` : undefined;
+  const response = await fetch(`${API_URL}/tasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      clientId: selectedClientId,
+      title: taskForm.title.trim(),
+      description: taskForm.description.trim(),
+      dueAt: dueAt || null,
+      priority: taskForm.priority,
+    }),
+  });
+  if (!response.ok) {
+    setError('Could not create task.');
+    return;
+  }
+  setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
+  await loadClientTasks(selectedClientId);
+  await loadGlobalTasks();
+  setSuccess('Task created successfully.');
+}
+
+async function rescheduleTask(task: TaskItem) {
+  const currentDate = task.dueAt ? new Date(task.dueAt).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }) : '';
+  const currentTime = task.dueAt ? new Date(task.dueAt).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+  const date = window.prompt('New callback/task date (YYYY-MM-DD)', currentDate);
+  if (!date) return;
+  const time = window.prompt('New callback/task time (HH:MM, UK time)', currentTime || '10:00');
+  if (!time) return;
+  const response = await fetch(`${API_URL}/tasks/${task.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status: 'OPEN', outcome: null, dueAt: `${date}T${time}` }),
+  });
+  if (!response.ok) {
+    setError('Could not reschedule task.');
+    return;
+  }
+  if (selectedClientId) {
+    await loadClientTasks(selectedClientId);
+    await loadClientDetail(selectedClientId);
+  }
+  await loadGlobalTasks();
+  setSuccess('Task rescheduled successfully.');
+}
 async function loadTemplates(activeToken = token) {
   const response = await fetch(API_URL + '/templates', {
     headers: { Authorization: 'Bearer ' + activeToken },
@@ -1277,11 +1338,17 @@ async function sendSmsMessage() {
     setError(data.message || 'Could not send SMS.');
     return;
   }
+  const data = await response.json().catch(() => ({}));
+  if (data.smsMessage) {
+    setSmsMessages((prev) => [...prev, data.smsMessage]);
+  }
   setSmsBody('');
   setSelectedSmsTemplateId('');
   await loadSmsMessages(selectedClientId);
   await loadSmsOverview();
   await loadClientDetail(selectedClientId);
+  setView('clients');
+  setClientTab('sms');
   setSuccess('SMS sent successfully.');
 }
 
@@ -1360,6 +1427,9 @@ function renderGlobalTaskSection(title: string, tasks: TaskItem[]) {
                 </button>
                 <button className="small-button secondary" onClick={() => updateClientTaskStatus(task.id, 'DONE', 'NO_ANSWER')}>
                   No answer
+                </button>
+                <button className="small-button secondary" onClick={() => rescheduleTask(task)}>
+                  Reschedule
                 </button>
                 <button className="small-button danger-button" onClick={() => updateClientTaskStatus(task.id, 'DONE', 'CANCELLED')}>
                   Cancel
@@ -1643,7 +1713,7 @@ function renderGlobalTasks() {
               </div>
               <div>
   <label>Status</label>
-  <select value={editForm.status} onChange={(e) => updateEditForm('status', e.target.value)}>
+  <select value={clientForm.status} onChange={(e) => updateClientForm('status', e.target.value)}>
     <option value="NEW_LEAD">New Lead</option>
     <option value="CONTACT_ATTEMPTED">Contact Attempted</option>
     <option value="CALL_BACK">Call Back</option>
@@ -1656,48 +1726,6 @@ function renderGlobalTasks() {
     <option value="LOST">Lost</option>
   </select>
 </div>
-
-{editForm.status === 'CALL_BACK' && (
-  <div className="callback-booking-panel full-width">
-    <h4>Callback booking</h4>
-
-    <div className="callback-grid">
-      <div>
-        <label>Callback date</label>
-        <input
-          type="date"
-          value={callbackForm.date}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, date: e.target.value }))
-          }
-        />
-      </div>
-
-      <div>
-        <label>Callback time</label>
-        <input
-          type="time"
-          value={callbackForm.time}
-          onChange={(e) =>
-            setCallbackForm((prev) => ({ ...prev, time: e.target.value }))
-          }
-        />
-      </div>
-    </div>
-
-    <div>
-      <label>Callback notes</label>
-      <textarea
-        rows={3}
-        value={callbackForm.notes}
-        onChange={(e) =>
-          setCallbackForm((prev) => ({ ...prev, notes: e.target.value }))
-        }
-        placeholder="Add callback notes or appointment details"
-      />
-    </div>
-  </div>
-)}
               {clientForm.status === 'CALL_BACK' && (
   <div className="callback-booking-panel">
     <h4>Callback booking</h4>
@@ -3028,19 +3056,37 @@ function renderTasksTab() {
         <span>{clientTasks.length} total</span>
       </div>
 
-      <div className="form-actions" style={{ marginBottom: '16px' }}>
-        <button
-          className="secondary"
-          onClick={() =>
-            void createClientTask(
-              'Manual follow-up',
-              'Follow up with client.',
-              undefined
-            )
-          }
-        >
-          Add quick task
-        </button>
+      <div className="manual-task-panel">
+        <div className="form-grid">
+          <div>
+            <label>Task title</label>
+            <input value={taskForm.title} onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="e.g. Manual follow-up" />
+          </div>
+          <div>
+            <label>Priority</label>
+            <select value={taskForm.priority} onChange={(e) => setTaskForm((prev) => ({ ...prev, priority: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' }))}>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+          </div>
+          <div>
+            <label>Due date</label>
+            <input type="date" value={taskForm.date} onChange={(e) => setTaskForm((prev) => ({ ...prev, date: e.target.value }))} />
+          </div>
+          <div>
+            <label>Due time (UK)</label>
+            <input type="time" value={taskForm.time} onChange={(e) => setTaskForm((prev) => ({ ...prev, time: e.target.value }))} />
+          </div>
+          <div className="full-width">
+            <label>Task notes</label>
+            <textarea className="task-notes-textarea" value={taskForm.description} onChange={(e) => setTaskForm((prev) => ({ ...prev, description: e.target.value }))} rows={4} placeholder="Add notes for the task" />
+          </div>
+        </div>
+        <div className="form-actions">
+          <button className="secondary" onClick={() => setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' })}>Clear</button>
+          <button className="primary" onClick={() => void createManualTaskFromForm()}>Add task + Outlook</button>
+        </div>
       </div>
 
       <div className="tasks-section">
@@ -3082,9 +3128,9 @@ function renderTasksTab() {
 
   <button
     className="secondary small-button"
-    onClick={() => void updateClientTaskStatus(task.id, 'DONE', 'RESCHEDULED')}
+    onClick={() => void rescheduleTask(task)}
   >
-    Rescheduled
+    Reschedule
   </button>
 
   <button
@@ -3240,7 +3286,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={5} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={9} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
@@ -3348,19 +3394,19 @@ function renderNotesTab() {
       <section className="admin-accordion">
         <details className="card premium-panel admin-details" open>
           <summary><div><h3>Templates</h3><p>SMS and email templates with merge variables.</p></div><span>{templates.length} templates</span></summary>
-          <div className="detail-sections">
-            <section className="detail-section">
+          <div className="admin-panel-body detail-sections">
+            <section className="detail-section admin-sub-panel">
               <div className="table-header"><h4>{editingTemplateId ? 'Edit template' : 'Add template'}</h4>{editingTemplateId && <button className="secondary" onClick={resetTemplateForm}>Cancel edit</button>}</div>
               <div className="form-grid">
                 <div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
                 <div><label>Template type</label><select value={templateForm.type} onChange={(e) => setTemplateForm((prev) => ({ ...prev, type: e.target.value as 'SMS' | 'EMAIL' }))}><option value="SMS">SMS</option><option value="EMAIL">Email</option></select></div>
                 {templateForm.type === 'EMAIL' && <div className="full-width"><label>Email subject</label><input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} /></div>}
-                <div className="full-width"><label>Template body</label><textarea value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={8} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
+                <div className="full-width"><label>Template body</label><textarea className="template-body-textarea" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={10} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
                 <label className="checkbox-row"><input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} /> Active</label>
               </div>
               <div className="form-actions"><button className="secondary" onClick={resetTemplateForm}>Clear</button><button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Add template'}</button></div>
             </section>
-            <section className="detail-section">
+            <section className="detail-section admin-sub-panel">
               <div className="table-header"><h4>SMS templates</h4><span>{smsTemplates.length}</span></div>
               <div className="template-list">{smsTemplates.length === 0 ? <p className="muted-text">No SMS templates yet.</p> : smsTemplates.map((template) => <div key={template.id} className="template-item"><div><strong>{template.name}</strong><p>{template.body}</p><small>{template.active ? 'Active' : 'Inactive'}</small></div><div className="debt-actions"><button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button><button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button></div></div>)}</div>
               <div className="table-header template-subhead"><h4>Email templates</h4><span>{emailTemplates.length}</span></div>
@@ -3370,13 +3416,13 @@ function renderNotesTab() {
         </details>
         <details className="card premium-panel admin-details" open>
           <summary><div><h3>Creditor Master List</h3><p>Collapsible A-Z creditor list used in the debts tab.</p></div><span>{sortedCreditors.length} creditors</span></summary>
-          <div className="detail-sections">
-            <section className="detail-section">
+          <div className="admin-panel-body detail-sections">
+            <section className="detail-section admin-sub-panel">
               <div className="table-header"><h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>{editingCreditorId && <button className="secondary" onClick={resetCreditorAdminForm}>Cancel edit</button>}</div>
               <div className="form-grid"><div className="full-width"><label>Creditor name</label><input value={creditorAdminName} onChange={(e) => setCreditorAdminName(e.target.value)} placeholder="Enter creditor name" /></div></div>
               <div className="form-actions"><button className="secondary" onClick={resetCreditorAdminForm}>Clear</button><button className="primary" onClick={addOrUpdateCreditor}>{editingCreditorId ? 'Update creditor' : 'Add creditor'}</button></div>
             </section>
-            <section className="detail-section">
+            <section className="detail-section admin-sub-panel">
               {Object.entries(creditorsByLetter).map(([letter, items]) => <details key={letter} className="creditor-letter-group" open={letter === 'A'}><summary>{letter}<span>{items.length}</span></summary><div className="creditor-admin-list">{items.map((item) => <div key={item.id} className="creditor-admin-item"><strong>{item.name}</strong><div className="debt-actions"><button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button><button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button></div></div>)}</div></details>)}
             </section>
           </div>
