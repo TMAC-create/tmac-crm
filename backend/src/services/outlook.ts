@@ -34,24 +34,28 @@ type TaskArgs = {
   existingEventIds?: OutlookEventIds | null;
 };
 
-function getEnv(name: string): string | undefined {
-  return process.env[name]?.trim();
+function getEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
 }
 
 function isConfigured(): boolean {
   return Boolean(
-    getEnv('MICROSOFT_TENANT_ID') &&
-      getEnv('MICROSOFT_CLIENT_ID') &&
-      getEnv('MICROSOFT_CLIENT_SECRET'),
+    getEnv('MICROSOFT_TENANT_ID', 'OUTLOOK_TENANT_ID') &&
+      getEnv('MICROSOFT_CLIENT_ID', 'OUTLOOK_CLIENT_ID') &&
+      getEnv('MICROSOFT_CLIENT_SECRET', 'OUTLOOK_CLIENT_SECRET'),
   );
 }
 
 async function getAccessToken(): Promise<string | null> {
   if (!isConfigured()) return null;
 
-  const tenantId = getEnv('MICROSOFT_TENANT_ID')!;
-  const clientId = getEnv('MICROSOFT_CLIENT_ID')!;
-  const clientSecret = getEnv('MICROSOFT_CLIENT_SECRET')!;
+  const tenantId = getEnv('MICROSOFT_TENANT_ID', 'OUTLOOK_TENANT_ID')!;
+  const clientId = getEnv('MICROSOFT_CLIENT_ID', 'OUTLOOK_CLIENT_ID')!;
+  const clientSecret = getEnv('MICROSOFT_CLIENT_SECRET', 'OUTLOOK_CLIENT_SECRET')!;
 
   const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
