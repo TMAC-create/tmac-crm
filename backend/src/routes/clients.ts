@@ -258,7 +258,7 @@ clientsRouter.patch('/:id', async (req, res) => {
   const callbackTime = effectiveCallback?.time;
   const callbackNotes = effectiveCallback?.notes;
 
-  if (parsed.data.status === 'CALL_BACK') {
+  if (parsed.data.status === 'CALL_BACK' && callbackDate && callbackTime) {
     const callbackDueAt =
       londonLocalToUtcDate(callbackDate, callbackTime) ??
       (() => {
