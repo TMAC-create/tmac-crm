@@ -11,6 +11,9 @@ import {
 
 export const clientsRouter = Router();
 
+const CALLBACK_TITLE = 'Client callback booked';
+const CHASE_DOCS_TITLE = 'Chase documents before callback';
+
 const statusEnum = z.enum([
   'NEW_LEAD',
   'CONTACT_ATTEMPTED',
@@ -101,13 +104,26 @@ type CallbackMeta = {
   outlookEventIds?: OutlookEventIds;
 };
 
+function normaliseEventIds(value: unknown): OutlookEventIds | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as OutlookEventIds;
+  const eventIds: OutlookEventIds = {};
+  if (typeof raw.mike === 'string' && raw.mike.trim()) eventIds.mike = raw.mike.trim();
+  if (typeof raw.steven === 'string' && raw.steven.trim()) eventIds.steven = raw.steven.trim();
+  return eventIds.mike || eventIds.steven ? eventIds : null;
+}
+
 function fallbackCallbackDate(): { date: string; time: string } {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const year = tomorrow.getFullYear();
-  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  const day = String(tomorrow.getDate()).padStart(2, '0');
-  return { date: `${year}-${month}-${day}`, time: '10:00' };
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const parts = formatter.formatToParts(tomorrow);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return { date: `${part('year')}-${part('month')}-${part('day')}`, time: '10:00' };
 }
 
 function buildCallbackDueAt(date?: string, time?: string): Date {
@@ -118,6 +134,120 @@ function buildCallbackDueAt(date?: string, time?: string): Date {
 
   const fallback = fallbackCallbackDate();
   return londonLocalToUtcDate(fallback.date, fallback.time) ?? new Date();
+}
+
+async function syncCallbackTasksAndOutlook(clientId: string, clientForOutlook: any, metadata: any, callbackMeta: CallbackMeta) {
+  const fallback = fallbackCallbackDate();
+  const callbackDate = callbackMeta.date || fallback.date;
+  const callbackTime = callbackMeta.time || fallback.time;
+  const callbackNotes = callbackMeta.notes || '';
+  const callbackDueAt = buildCallbackDueAt(callbackDate, callbackTime);
+
+  const existingOpenCallbackTasks = await prisma.task.findMany({
+    where: {
+      clientId,
+      status: 'OPEN',
+      title: { in: [CALLBACK_TITLE, CHASE_DOCS_TITLE] },
+    },
+  });
+
+  const callbackTask = existingOpenCallbackTasks.find((task) => task.title === CALLBACK_TITLE);
+  const chaseDocsTask = existingOpenCallbackTasks.find((task) => task.title === CHASE_DOCS_TITLE);
+  const existingEventIds = normaliseEventIds(callbackTask?.outlookEventIds) ?? normaliseEventIds(callbackMeta.outlookEventIds);
+
+  const eventIds = await upsertOutlookCallbackEvents({
+    client: clientForOutlook,
+    callbackDate,
+    callbackTime,
+    notes: callbackNotes,
+    existingEventIds,
+  });
+
+  const savedEventIds = eventIds ?? existingEventIds ?? null;
+
+  if (callbackTask) {
+    await prisma.task.update({
+      where: { id: callbackTask.id },
+      data: {
+        dueAt: callbackDueAt,
+        description: callbackNotes || 'Call client back at the scheduled appointment time.',
+        priority: 'HIGH',
+        status: 'OPEN',
+        outcome: null,
+        outlookEventIds: savedEventIds as any,
+      },
+    });
+  } else {
+    await prisma.task.create({
+      data: {
+        clientId,
+        title: CALLBACK_TITLE,
+        description: callbackNotes || 'Call client back at the scheduled appointment time.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'HIGH',
+        outlookEventIds: savedEventIds as any,
+      },
+    });
+  }
+
+  if (chaseDocsTask) {
+    await prisma.task.update({
+      where: { id: chaseDocsTask.id },
+      data: {
+        dueAt: callbackDueAt,
+        description: 'Check outstanding documents before the callback appointment.',
+        priority: 'MEDIUM',
+        status: 'OPEN',
+        outcome: null,
+      },
+    });
+  } else {
+    await prisma.task.create({
+      data: {
+        clientId,
+        title: CHASE_DOCS_TITLE,
+        description: 'Check outstanding documents before the callback appointment.',
+        dueAt: callbackDueAt,
+        status: 'OPEN',
+        priority: 'MEDIUM',
+      },
+    });
+  }
+
+  return {
+    ...metadata,
+    callback: {
+      ...callbackMeta,
+      date: callbackDate,
+      time: callbackTime,
+      notes: callbackNotes,
+      outlookEventIds: savedEventIds ?? {},
+    },
+  };
+}
+
+async function removeCallbackOutlook(clientId: string, metadata: any): Promise<any> {
+  const callbackMeta = ((metadata.callback ?? {}) as CallbackMeta) || {};
+  const openCallbackTask = await prisma.task.findFirst({
+    where: { clientId, title: CALLBACK_TITLE, status: 'OPEN' },
+  });
+
+  const eventIds = normaliseEventIds(openCallbackTask?.outlookEventIds) ?? normaliseEventIds(callbackMeta.outlookEventIds);
+  if (eventIds) await deleteOutlookCallbackEvents(eventIds);
+
+  await prisma.task.updateMany({
+    where: { clientId, title: CALLBACK_TITLE },
+    data: { outlookEventIds: null as any },
+  });
+
+  return {
+    ...metadata,
+    callback: {
+      ...callbackMeta,
+      outlookEventIds: {},
+    },
+  };
 }
 
 clientsRouter.use(requireAuth);
@@ -175,7 +305,7 @@ clientsRouter.post('/', async (req, res) => {
       ? clientsWithReference[0].reference + 1
       : 1000;
 
-  const client = await prisma.client.create({
+  let client = await prisma.client.create({
     data: {
       reference: nextReference,
       title: data.title || null,
@@ -206,64 +336,18 @@ clientsRouter.post('/', async (req, res) => {
     },
   });
 
-  let responseClient = client;
-
   if (data.status === 'CALL_BACK') {
     const metadata = ((client.metadataJson ?? {}) as any) || {};
     const callbackMeta = ((metadata.callback ?? {}) as CallbackMeta) || {};
-    const fallback = fallbackCallbackDate();
-    const callbackDate = callbackMeta.date || fallback.date;
-    const callbackTime = callbackMeta.time || fallback.time;
-    const callbackNotes = callbackMeta.notes || '';
-    const callbackDueAt = buildCallbackDueAt(callbackDate, callbackTime);
+    const metadataWithCallback = await syncCallbackTasksAndOutlook(client.id, client, metadata, callbackMeta);
 
-    const eventIds = await upsertOutlookCallbackEvents({
-      client,
-      callbackDate,
-      callbackTime,
-      notes: callbackNotes,
-      existingEventIds: callbackMeta.outlookEventIds,
-    });
-
-    responseClient = await prisma.client.update({
+    client = await prisma.client.update({
       where: { id: client.id },
-      data: {
-        metadataJson: {
-          ...metadata,
-          callback: {
-            ...callbackMeta,
-            date: callbackDate,
-            time: callbackTime,
-            notes: callbackNotes,
-            outlookEventIds: eventIds ?? callbackMeta.outlookEventIds ?? {},
-          },
-        },
-      },
-    });
-
-    await prisma.task.createMany({
-      data: [
-        {
-          clientId: client.id,
-          title: 'Client callback booked',
-          description: callbackNotes || 'Call client back at the scheduled appointment time.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'HIGH',
-        },
-        {
-          clientId: client.id,
-          title: 'Chase documents before callback',
-          description: 'Check outstanding documents before the callback appointment.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'MEDIUM',
-        },
-      ],
+      data: { metadataJson: metadataWithCallback },
     });
   }
 
-  res.status(201).json(responseClient);
+  res.status(201).json(client);
 });
 
 clientsRouter.patch('/:id', async (req, res) => {
@@ -294,6 +378,8 @@ clientsRouter.patch('/:id', async (req, res) => {
       }
     : existingMetadata;
 
+  let metadataToSave: any = incomingMetadata ? mergedMetadata : undefined;
+
   let updated = await prisma.client.update({
     where: { id: req.params.id },
     data: {
@@ -313,114 +399,27 @@ clientsRouter.patch('/:id', async (req, res) => {
       status: parsed.data.status ?? undefined,
       clientSalary: parsed.data.clientSalary ?? undefined,
       propertyValue: parsed.data.propertyValue ?? undefined,
-      metadataJson: incomingMetadata ? mergedMetadata : undefined,
+      metadataJson: metadataToSave,
     },
   });
 
-  if (parsed.data.status === 'CALL_BACK') {
+  const shouldSyncCallback =
+    parsed.data.status === 'CALL_BACK' || Boolean(incomingMetadata?.callback && (parsed.data.status ?? existing.status) === 'CALL_BACK');
+
+  if (shouldSyncCallback) {
     const callbackMeta = ((mergedMetadata.callback ?? {}) as CallbackMeta) || {};
-    const fallback = fallbackCallbackDate();
-    const callbackDate = callbackMeta.date || fallback.date;
-    const callbackTime = callbackMeta.time || fallback.time;
-    const callbackNotes = callbackMeta.notes || '';
-    const callbackDueAt = buildCallbackDueAt(callbackDate, callbackTime);
-
-    const eventIds = await upsertOutlookCallbackEvents({
-      client: updated,
-      callbackDate,
-      callbackTime,
-      notes: callbackNotes,
-      existingEventIds: callbackMeta.outlookEventIds,
-    });
-
-    const metadataWithCallback = {
-      ...mergedMetadata,
-      callback: {
-        ...callbackMeta,
-        date: callbackDate,
-        time: callbackTime,
-        notes: callbackNotes,
-        outlookEventIds: eventIds ?? callbackMeta.outlookEventIds ?? {},
-      },
-    };
+    const metadataWithCallback = await syncCallbackTasksAndOutlook(updated.id, updated, mergedMetadata, callbackMeta);
 
     updated = await prisma.client.update({
       where: { id: updated.id },
       data: { metadataJson: metadataWithCallback },
     });
-
-    const existingOpenCallbackTasks = await prisma.task.findMany({
-      where: {
-        clientId: req.params.id,
-        status: 'OPEN',
-        title: { in: ['Client callback booked', 'Chase documents before callback'] },
-      },
+  } else if (parsed.data.status && existing.status === 'CALL_BACK') {
+    const metadataWithoutOutlook = await removeCallbackOutlook(updated.id, mergedMetadata);
+    updated = await prisma.client.update({
+      where: { id: updated.id },
+      data: { metadataJson: metadataWithoutOutlook },
     });
-
-    const callbackTask = existingOpenCallbackTasks.find((task) => task.title === 'Client callback booked');
-    const chaseDocsTask = existingOpenCallbackTasks.find((task) => task.title === 'Chase documents before callback');
-
-    if (callbackTask) {
-      await prisma.task.update({
-        where: { id: callbackTask.id },
-        data: {
-          dueAt: callbackDueAt,
-          description: callbackNotes || 'Call client back at the scheduled appointment time.',
-          priority: 'HIGH',
-        },
-      });
-    } else {
-      await prisma.task.create({
-        data: {
-          clientId: req.params.id,
-          title: 'Client callback booked',
-          description: callbackNotes || 'Call client back at the scheduled appointment time.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'HIGH',
-        },
-      });
-    }
-
-    if (chaseDocsTask) {
-      await prisma.task.update({
-        where: { id: chaseDocsTask.id },
-        data: {
-          dueAt: callbackDueAt,
-          description: 'Check outstanding documents before the callback appointment.',
-          priority: 'MEDIUM',
-        },
-      });
-    } else {
-      await prisma.task.create({
-        data: {
-          clientId: req.params.id,
-          title: 'Chase documents before callback',
-          description: 'Check outstanding documents before the callback appointment.',
-          dueAt: callbackDueAt,
-          status: 'OPEN',
-          priority: 'MEDIUM',
-        },
-      });
-    }
-  } else if (parsed.data.status) {
-    const callbackMeta = ((existingMetadata.callback ?? {}) as CallbackMeta) || {};
-    if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
-      await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds);
-      await prisma.client.update({
-        where: { id: updated.id },
-        data: {
-          metadataJson: {
-            ...mergedMetadata,
-            callback: {
-              ...callbackMeta,
-              ...(incomingMetadata?.callback ?? {}),
-              outlookEventIds: {},
-            },
-          },
-        },
-      });
-    }
   }
 
   await prisma.activity.create({
@@ -481,10 +480,7 @@ clientsRouter.delete('/:id', async (req, res) => {
   }
 
   const metadata = ((existing.metadataJson ?? {}) as any) || {};
-  const callbackMeta = (metadata.callback ?? {}) as CallbackMeta;
-  if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
-    await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds);
-  }
+  await removeCallbackOutlook(existing.id, metadata);
 
   await prisma.client.delete({
     where: { id: req.params.id },
