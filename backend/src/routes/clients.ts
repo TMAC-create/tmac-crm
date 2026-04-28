@@ -346,7 +346,7 @@ clientsRouter.patch('/:id', async (req, res) => {
         },
       });
     }
-  } else if (parsed.data.status && parsed.data.status !== 'CALL_BACK') {
+  } else if (parsed.data.status) {
     const callbackMeta = ((existingMetadata.callback ?? {}) as CallbackMeta) || {};
     if (callbackMeta.outlookEventIds?.mike || callbackMeta.outlookEventIds?.steven) {
       await deleteOutlookCallbackEvents(callbackMeta.outlookEventIds);
