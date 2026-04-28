@@ -119,6 +119,7 @@ model Task {
   priority       TaskPriority @default(MEDIUM)
   status         TaskStatus   @default(OPEN)
   outcome        TaskOutcome?
+  outlookEventIds Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
