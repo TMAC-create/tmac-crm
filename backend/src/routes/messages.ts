@@ -162,7 +162,7 @@ messagesRouter.get('/unread-count', async (_req, res) => {
 messagesRouter.get('/overview', async (_req, res) => {
   const messages = await prisma.smsMessage.findMany({
     orderBy: [{ createdAt: 'desc' }],
-    take: 200,
+    take: 500,
     include: {
       client: {
         select: { id: true, reference: true, firstName: true, lastName: true, mobile: true },
@@ -170,7 +170,34 @@ messagesRouter.get('/overview', async (_req, res) => {
     },
   });
 
-  res.json(messages);
+  const conversations = new Map<string, any>();
+
+  for (const message of messages) {
+    const key = message.clientId || message.fromNumber || message.toNumber || message.id;
+    const existing = conversations.get(key);
+
+    if (!existing) {
+      conversations.set(key, {
+        ...message,
+        latestAt: message.receivedAt || message.createdAt,
+        messageCount: 1,
+        unreadCount: message.direction === 'INBOUND' && !message.readAt && message.clientId ? 1 : 0,
+      });
+      continue;
+    }
+
+    existing.messageCount += 1;
+    if (message.direction === 'INBOUND' && !message.readAt && message.clientId) {
+      existing.unreadCount += 1;
+    }
+  }
+
+  const grouped = Array.from(conversations.values()).sort((a, b) => {
+    if ((a.unreadCount || 0) !== (b.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
+    return new Date(b.latestAt || b.createdAt).getTime() - new Date(a.latestAt || a.createdAt).getTime();
+  });
+
+  res.json(grouped);
 });
 
 messagesRouter.get('/client/:clientId', async (req, res) => {
