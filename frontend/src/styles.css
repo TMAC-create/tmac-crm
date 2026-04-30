@@ -2534,29 +2534,68 @@ dd { margin: 0; font-weight: 600; }
   flex: 0 0 auto;
 }
 
-
-/* Final operational polish: Admin separation, bigger composers, task/calendar controls */
-textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-  resize: vertical;
-  font: inherit;
-  line-height: 1.45;
-  background: #fff;
+/* SMS final: grouped inbox, unread badges and browser notification controls */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
-.admin-accordion { display: grid; gap: 24px; }
-.admin-details { border: 1px solid rgba(88,45,145,0.16); overflow: hidden; }
-.admin-details + .admin-details { margin-top: 10px; }
-.admin-details > summary { min-height: 88px; background: linear-gradient(135deg, #ffffff 0%, #f6f3fb 100%); }
-.admin-details[open] > summary { border-bottom: 1px solid rgba(88,45,145,0.16); }
-.admin-panel-body { padding: 22px; background: #fbfcff; }
-.admin-sub-panel { background: #ffffff; box-shadow: none; }
-.template-body-textarea { min-height: 190px; }
-.sms-compose-textarea { min-height: 180px; font-size: 15px; }
-.task-notes-textarea { min-height: 96px; }
-.manual-task-panel { border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: #f8fafc; margin-bottom: 18px; }
-.sms-compose .form-grid { align-items: start; }
-.sms-compose { position: sticky; bottom: 0; z-index: 1; }
-.creditor-letter-group > summary, .admin-details > summary { user-select: none; }
+
+.nav-badge,
+.sms-row-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sms-row-badge {
+  margin-left: 10px;
+  background: #16a34a;
+}
+
+.sms-stat-alert {
+  background: #fee2e2 !important;
+  border: 1px solid #fecaca;
+}
+
+.sms-stat-alert strong {
+  color: #b91c1c !important;
+}
+
+.sms-overview-item {
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.sms-overview-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(88, 45, 145, 0.28);
+}
+
+.sms-overview-item.unread {
+  border-width: 2px;
+  border-color: #16a34a;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.10), #ffffff 65%);
+}
+
+.sms-compose-textarea,
+.template-body-textarea {
+  width: 100%;
+  min-height: 180px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.template-body-textarea {
+  min-height: 220px;
+}
