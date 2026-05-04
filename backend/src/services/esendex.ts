@@ -12,6 +12,12 @@ type EsendexSendSmsResult = {
   raw: unknown;
 };
 
+type EsendexWebhookSubscriptionResult = {
+  eventType: string;
+  callbackUrl: string;
+  raw: unknown;
+};
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -44,7 +50,7 @@ export function mobileMatchKeys(input: string | null | undefined): string[] {
   return Array.from(new Set([normalised, digits, local, `+${digits}`].filter(Boolean)));
 }
 
-function buildErrorMessage(raw: unknown): string {
+function buildErrorMessage(raw: unknown, fallback = 'Esendex request failed.'): string {
   if (typeof raw === 'string') return raw;
 
   if (raw && typeof raw === 'object') {
@@ -57,9 +63,72 @@ function buildErrorMessage(raw: unknown): string {
     }
 
     if ('message' in raw) return String((raw as any).message);
+    if ('title' in raw) return String((raw as any).title);
   }
 
-  return 'Esendex SMS send failed.';
+  return fallback;
+}
+
+async function readJsonResponse(response: Response): Promise<unknown> {
+  const responseText = await response.text();
+
+  try {
+    return responseText ? JSON.parse(responseText) : {};
+  } catch {
+    return responseText;
+  }
+}
+
+function throwEsendexError(raw: unknown, response: Response, fallback: string): never {
+  const error = new Error(buildErrorMessage(raw, fallback)) as Error & {
+    status?: number;
+    statusText?: string;
+    details?: unknown;
+  };
+
+  error.status = response.status;
+  error.statusText = response.statusText;
+  error.details = raw;
+  throw error;
+}
+
+export async function createEsendexWebhookSubscription(): Promise<EsendexWebhookSubscriptionResult> {
+  const apiKey = requiredEnv('ESENDEX_API_KEY');
+  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
+  const endpoint = process.env.ESENDEX_WEBHOOK_SUBSCRIPTIONS_URL || 'https://api.esendex.co.uk/v2/webhooks/subscriptions';
+  const eventType = process.env.ESENDEX_INBOUND_EVENT_TYPE || 'sms-message-received';
+  const callbackUrl =
+    process.env.ESENDEX_WEBHOOK_CALLBACK_URL ||
+    `${(process.env.PUBLIC_BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://tmac-crm-web.onrender.com').replace(/\/$/, '')}/api/messages/esendex/webhook`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': apiKey,
+      AccountReference: accountReference,
+    },
+    body: JSON.stringify({
+      eventType,
+      callbacks: [
+        {
+          url: callbackUrl,
+        },
+      ],
+    }),
+  });
+
+  const raw = await readJsonResponse(response);
+
+  if (!response.ok) {
+    throwEsendexError(raw, response, 'Could not create Esendex webhook subscription.');
+  }
+
+  return {
+    eventType,
+    callbackUrl,
+    raw,
+  };
 }
 
 export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
@@ -106,27 +175,10 @@ export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<Esende
     body: JSON.stringify(payload),
   });
 
-  const responseText = await response.text();
-  let raw: unknown = responseText;
-
-  try {
-    raw = responseText ? JSON.parse(responseText) : {};
-  } catch {
-    raw = responseText;
-  }
+  const raw = await readJsonResponse(response);
 
   if (!response.ok) {
-    const error = new Error(buildErrorMessage(raw)) as Error & {
-      status?: number;
-      statusText?: string;
-      details?: unknown;
-      responseText?: string;
-    };
-    error.status = response.status;
-    error.statusText = response.statusText;
-    error.details = raw;
-    error.responseText = responseText;
-    throw error;
+    throwEsendexError(raw, response, 'Esendex SMS send failed.');
   }
 
   const data = raw as any;
