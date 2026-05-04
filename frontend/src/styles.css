@@ -2534,68 +2534,182 @@ dd { margin: 0; font-weight: 600; }
   flex: 0 0 auto;
 }
 
-/* SMS final: grouped inbox, unread badges and browser notification controls */
-.nav-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+
+/* Final professional SMS inbox + collapsed template/admin polish */
+.sms-command-centre,
+.admin-command-centre {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
 }
 
-.nav-badge,
-.sms-row-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 4px 8px;
+.admin-command-centre {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sms-command-card,
+.admin-command-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: 0 10px 28px rgba(31, 41, 55, 0.06);
+}
+
+.sms-command-card span,
+.admin-command-card span {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.sms-command-card strong,
+.admin-command-card strong {
+  display: block;
+  font-size: 34px;
+  color: #0f172a;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.sms-command-card small,
+.admin-command-card small {
+  color: #64748b;
+}
+
+.sms-command-card.attention {
+  background: linear-gradient(135deg, #fee2e2 0%, #ffffff 68%);
+  border-color: #fecaca;
+}
+
+.sms-command-card.attention strong { color: #b91c1c; }
+
+.sms-inbox-section {
+  padding: 22px;
+  margin-bottom: 20px;
+}
+
+.unmatched-section {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, #f4fdf7 100%);
+}
+
+.sms-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sms-section-header h3 { margin: 0 0 5px; }
+.sms-section-header p { margin: 0; color: var(--muted); }
+.sms-section-header > span {
   border-radius: 999px;
-  background: #dc2626;
-  color: #ffffff;
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 8px 12px;
   font-size: 12px;
   font-weight: 800;
-  line-height: 1;
 }
 
-.sms-row-badge {
-  margin-left: 10px;
-  background: #16a34a;
+.sms-thread-list { display: grid; gap: 14px; }
+
+.sms-thread-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px;
+  background: #ffffff;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.sms-stat-alert {
-  background: #fee2e2 !important;
-  border: 1px solid #fecaca;
-}
-
-.sms-stat-alert strong {
-  color: #b91c1c !important;
-}
-
-.sms-overview-item {
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
-}
-
-.sms-overview-item:hover {
+.sms-thread-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(88, 45, 145, 0.28);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
 }
 
-.sms-overview-item.unread {
-  border-width: 2px;
+.sms-thread-card.needs-reply {
   border-color: #16a34a;
-  background: linear-gradient(135deg, rgba(22, 163, 74, 0.10), #ffffff 65%);
+  box-shadow: inset 4px 0 0 #16a34a;
 }
 
-.sms-compose-textarea,
-.template-body-textarea {
-  width: 100%;
-  min-height: 180px;
-  font-size: 15px;
-  line-height: 1.5;
+.sms-thread-card.unmatched {
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.08), #ffffff 55%);
 }
 
-.template-body-textarea {
-  min-height: 220px;
+.sms-thread-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sms-thread-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--purple), var(--green));
+  color: white;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.sms-thread-copy { min-width: 0; }
+.sms-thread-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+.sms-thread-title-row strong { color: #090b3f; font-size: 16px; }
+.sms-thread-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.sms-thread-copy p { margin: 0 0 10px; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 920px; }
+.sms-thread-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: #64748b; font-size: 12px; }
+.sms-direction { border-radius: 999px; padding: 4px 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; }
+.sms-direction.inbound { background: #dcfce7; color: #166534; }
+.sms-direction.outbound { background: #eef2ff; color: #4f46e5; }
+.sms-thread-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+.template-grid { display: grid; gap: 14px; }
+.template-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  background: #ffffff;
+}
+.template-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.template-card p { margin: 7px 0; color: #475569; white-space: pre-wrap; }
+.template-subject { color: #0f172a !important; }
+.template-status { border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; }
+.template-status.active { background: #dcfce7; color: #166534; }
+.template-status.inactive { background: #f1f5f9; color: #64748b; }
+
+.admin-details > summary { min-height: 88px; background: linear-gradient(135deg, #ffffff 0%, #f6f3fb 100%); }
+.admin-panel-body { padding: 22px; background: #fbfcff; }
+.admin-sub-panel { background: #ffffff; box-shadow: none; }
+.template-body-textarea { min-height: 230px !important; font-size: 15px; line-height: 1.5; }
+.sms-compose textarea,
+.sms-compose-textarea { min-height: 220px !important; font-size: 15px; line-height: 1.5; resize: vertical; }
+
+@media (max-width: 1100px) {
+  .sms-command-centre,
+  .admin-command-centre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sms-thread-card,
+  .template-card { grid-template-columns: 1fr; }
+  .sms-thread-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 700px) {
+  .sms-command-centre,
+  .admin-command-centre { grid-template-columns: 1fr; }
+  .sms-section-header { flex-direction: column; }
 }
