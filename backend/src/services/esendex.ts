@@ -93,29 +93,24 @@ function throwEsendexError(raw: unknown, response: Response, fallback: string): 
 }
 
 export async function createEsendexWebhookSubscription(): Promise<EsendexWebhookSubscriptionResult> {
-  const apiKey = requiredEnv('ESENDEX_API_KEY');
-  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
-  const endpoint = process.env.ESENDEX_WEBHOOK_SUBSCRIPTIONS_URL || 'https://api.esendex.co.uk/v2/webhooks/subscriptions';
-  const eventType = process.env.ESENDEX_INBOUND_EVENT_TYPE || 'sms-message-received';
-  const callbackUrl =
+  const apiKey = requiredEnv('ESENDEX_API_KEY').trim();
+  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE').trim();
+  const endpoint = (process.env.ESENDEX_WEBHOOK_SUBSCRIPTIONS_URL || 'https://api.esendex.co.uk/v2/webhooks/subscriptions').trim();
+  const eventType = (process.env.ESENDEX_INBOUND_EVENT_TYPE || 'sms-message-received').trim();
+  const callbackUrl = (
     process.env.ESENDEX_WEBHOOK_CALLBACK_URL ||
-    `${(process.env.PUBLIC_BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://tmac-crm-web.onrender.com').replace(/\/$/, '')}/api/messages/esendex/webhook`;
+    `${(process.env.PUBLIC_BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://tmac-crm-api.onrender.com').replace(/\/$/, '')}/messages/esendex/webhook`
+  ).trim();
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'ContentType': 'application/json',
-      // Esendex webhook docs are inconsistent across pages.
-      // Send every supported auth header variant so the subscription route can authenticate.
+      // Esendex confirmed these exact header names.
+      // Do not add Authorization / Api-Key / Content-Type variants here; the webhook endpoint rejects unauthenticated requests if auth is not exactly right.
+      ContentType: 'application/json',
       'X-Api-Key': apiKey,
-      'Api-Key': apiKey,
-      'Authorization': apiKey,
       AccountReference: accountReference,
     },
-    // Esendex v2 expects an array of CreateSubscriptionBody objects at the root.
-    // Sending a single object causes:
-    // "could not be converted to IEnumerable<CreateSubscriptionBody>"
     body: JSON.stringify([
       {
         eventType,
@@ -142,8 +137,8 @@ export async function createEsendexWebhookSubscription(): Promise<EsendexWebhook
 }
 
 export async function sendEsendexSms(input: EsendexSendSmsInput): Promise<EsendexSendSmsResult> {
-  const apiKey = requiredEnv('ESENDEX_API_KEY');
-  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE');
+  const apiKey = requiredEnv('ESENDEX_API_KEY').trim();
+  const accountReference = requiredEnv('ESENDEX_ACCOUNT_REFERENCE').trim();
   const senderName = process.env.ESENDEX_SENDER_NAME || 'TMAC';
   const endpoint = process.env.ESENDEX_MESSAGES_URL || 'https://api.esendex.co.uk/v2/messages';
   const apiKeyHeader = process.env.ESENDEX_API_KEY_HEADER || 'X-Api-Key';
