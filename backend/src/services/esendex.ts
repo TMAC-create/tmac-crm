@@ -105,10 +105,12 @@ export async function createEsendexWebhookSubscription(): Promise<EsendexWebhook
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Esendex docs/reference examples vary between X-Api-Key and Api-Key.
-      // Supplying both is harmless and avoids header-name mismatch.
+      'ContentType': 'application/json',
+      // Esendex webhook docs are inconsistent across pages.
+      // Send every supported auth header variant so the subscription route can authenticate.
       'X-Api-Key': apiKey,
       'Api-Key': apiKey,
+      'Authorization': apiKey,
       AccountReference: accountReference,
     },
     // Esendex v2 expects an array of CreateSubscriptionBody objects at the root.
