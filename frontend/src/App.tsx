@@ -395,78 +395,51 @@ const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 const [templateForm, setTemplateForm] = useState({ name: '', type: 'SMS' as 'SMS' | 'EMAIL', subject: '', body: '', active: true });
 const [smsMessages, setSmsMessages] = useState<SmsMessageItem[]>([]);
 const [smsOverview, setSmsOverview] = useState<SmsMessageItem[]>([]);
+const lastSmsNotificationIdRef = useRef<string | null>(null);
+const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
+  typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+);
 const [smsBody, setSmsBody] = useState('');
 const [selectedSmsTemplateId, setSelectedSmsTemplateId] = useState('');
 const [sendingSms, setSendingSms] = useState(false);
-const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(typeof Notification === 'undefined' ? 'default' : Notification.permission);
-const smsOverviewRef = useRef<SmsMessageItem[]>([]);
-const smsPollRef = useRef<number | null>(null);
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 
   const unreadSmsCount = useMemo(
-    () => smsOverview.reduce((total, message) => total + (message.unreadCount ?? (message.direction === 'INBOUND' && !message.readAt ? 1 : 0)), 0),
+    () => smsOverview.filter((message) => message.direction === 'INBOUND' && !message.readAt).reduce((total, message) => total + (message.unreadCount || 1), 0),
     [smsOverview]
   );
 
-  async function enableSmsNotifications() {
-    if (typeof Notification === 'undefined') {
+  async function enableBrowserNotifications() {
+    if (!('Notification' in window)) {
       setError('Browser notifications are not supported in this browser.');
       return;
     }
 
     const permission = await Notification.requestPermission();
-    setNotificationPermission(permission);
-
-    if (permission === 'granted') {
-      setSuccess('SMS browser notifications enabled.');
-      const latestInbound = smsOverview.find((message) => message.direction === 'INBOUND');
-      if (latestInbound) localStorage.setItem('tmac-last-notified-sms-id', latestInbound.id);
+    setBrowserNotificationsEnabled(permission === 'granted');
+    if (permission !== 'granted') {
+      setError('Browser notifications were not enabled.');
     } else {
-      setError('Browser notifications were not enabled. Check your browser site permissions.');
+      setSuccess('Browser notifications enabled for inbound SMS replies.');
     }
   }
 
-  function showSmsBrowserNotification(message: SmsMessageItem) {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  function notifyInboundSms(message: SmsMessageItem) {
+    if (!message || message.direction !== 'INBOUND' || message.readAt) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (lastSmsNotificationIdRef.current === message.id) return;
 
-    const clientName = message.client
-      ? `${message.client.firstName} ${message.client.lastName}`.trim()
-      : message.fromNumber || 'Unknown number';
-
-    const notification = new Notification(`New SMS reply from ${clientName}`, {
-      body: message.body,
-      tag: `sms-${message.clientId || message.id}`,
-      renotify: true,
+    lastSmsNotificationIdRef.current = message.id;
+    const clientName = message.client ? `${message.client.firstName} ${message.client.lastName}` : message.fromNumber || 'Inbound SMS';
+    const notification = new Notification('New SMS reply', {
+      body: `${clientName}: ${message.body || 'New inbound message'}`,
     });
 
     notification.onclick = () => {
       window.focus();
-      if (message.clientId) {
-        const client = clients.find((item) => item.id === message.clientId);
-        Promise.resolve(client ? openClient(client) : loadClientDetail(message.clientId!, token, false))
-          .then(() => loadSmsMessages(message.clientId!))
-          .then(() => {
-            setClientTab('sms');
-            setView('clients');
-          });
-      } else {
-        setView('sms');
-      }
-      notification.close();
+      setView('sms');
     };
-  }
-
-  function notifyNewInboundSms(messages: SmsMessageItem[]) {
-    const inboundUnread = messages.filter((message) => message.direction === 'INBOUND' && !message.readAt);
-    if (inboundUnread.length === 0) return;
-
-    const latest = inboundUnread[0];
-    const lastNotifiedId = localStorage.getItem('tmac-last-notified-sms-id');
-    if (latest.id === lastNotifiedId) return;
-
-    localStorage.setItem('tmac-last-notified-sms-id', latest.id);
-    showSmsBrowserNotification(latest);
   }
 
 useEffect(() => {
@@ -474,25 +447,14 @@ useEffect(() => {
 }, [creditorMasterList]);
 
 useEffect(() => {
-  smsOverviewRef.current = smsOverview;
-}, [smsOverview]);
+  if (!token) return;
 
-useEffect(() => {
-  if (!isLoggedIn || !token) return;
+  const interval = window.setInterval(() => {
+    loadSmsOverview(token, true);
+  }, 15000);
 
-  const pollSms = async () => {
-    await loadSmsOverview(token, true);
-    if (selectedClientId && clientTab === 'sms') {
-      await loadSmsMessages(selectedClientId, token);
-    }
-  };
-
-  smsPollRef.current = window.setInterval(pollSms, 15000);
-  return () => {
-    if (smsPollRef.current) window.clearInterval(smsPollRef.current);
-  };
-}, [isLoggedIn, token, selectedClientId, clientTab]);
-
+  return () => window.clearInterval(interval);
+}, [token]);
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
@@ -740,11 +702,11 @@ function maxLoanAtLtv(targetLtv: number) {
     setClients(data);
 
     if (selectedClientId) {
-      await loadClientDetail(selectedClientId, activeToken, true);
+      await loadClientDetail(selectedClientId, activeToken);
     }
   }
 
-  async function loadClientDetail(id: string, activeToken = token, preserveClientTab = false) {
+  async function loadClientDetail(id: string, activeToken = token) {
     const response = await fetch(`${API_URL}/clients/${id}`, {
       headers: { Authorization: `Bearer ${activeToken}` },
     });
@@ -757,7 +719,6 @@ function maxLoanAtLtv(targetLtv: number) {
     const data = await response.json();
     setSelectedClient(data);
     setSelectedClientId(id);
-    if (!preserveClientTab) setClientTab('overview');
     populateClientWorkspace(data);
   }
 
@@ -814,6 +775,7 @@ setCreditorSearch('');
     setShowAddClient(false);
     setSuccess('');
     setError('');
+    setClientTab('overview');
     await loadClientDetail(client.id);
     await loadClientDocuments(client.id);
     await loadClientTasks(client.id);
@@ -889,7 +851,7 @@ setCreditorSearch('');
   }
 
   await loadClients();
-  await loadClientDetail(selectedClientId, token, true);
+  await loadClientDetail(selectedClientId);
   setSuccess('Client updated successfully.');
 }
 
@@ -914,7 +876,7 @@ setCreditorSearch('');
     }
 
     setNewNote('');
-    await loadClientDetail(selectedClientId, token, true);
+    await loadClientDetail(selectedClientId);
     setSuccess('Note added successfully.');
   }
 
@@ -1331,14 +1293,18 @@ async function loadSmsMessages(clientId: string, activeToken = token) {
   setSmsMessages(await response.json());
 }
 
-async function loadSmsOverview(activeToken = token, notify = false) {
+async function loadSmsOverview(activeToken = token, checkForNotifications = false) {
   const response = await fetch(API_URL + '/messages/overview', {
     headers: { Authorization: 'Bearer ' + activeToken },
   });
   if (!response.ok) return;
-  const data = await response.json();
+  const data: SmsMessageItem[] = await response.json();
   setSmsOverview(data);
-  if (notify) notifyNewInboundSms(data);
+
+  if (checkForNotifications) {
+    const latestUnread = data.find((message) => message.direction === 'INBOUND' && !message.readAt);
+    if (latestUnread) notifyInboundSms(latestUnread);
+  }
 }
 
 async function markSmsRead(clientId: string) {
@@ -1376,7 +1342,6 @@ async function sendSmsMessage() {
   setSelectedSmsTemplateId('');
   await loadSmsMessages(selectedClientId);
   await loadSmsOverview();
-  await loadClientDetail(selectedClientId, token, true);
   setClientTab('sms');
   setView('clients');
   setSuccess('SMS sent successfully.');
@@ -3316,9 +3281,6 @@ function renderNotesTab() {
             <p className="muted-text">Two-way Esendex conversation for this client.</p>
           </div>
           <div className="header-actions">
-            {notificationPermission !== 'granted' && (
-              <button className="secondary" onClick={enableSmsNotifications}>Enable SMS alerts</button>
-            )}
             {inboundUnread > 0 && (
               <button className="secondary" onClick={() => markSmsRead(selectedClient.id)}>
                 Mark {inboundUnread} reply{inboundUnread === 1 ? '' : 'ies'} read
@@ -3340,7 +3302,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={8} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={5} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
@@ -3349,56 +3311,19 @@ function renderNotesTab() {
   }
 
   function renderSmsOverview() {
-    const unread = smsOverview.reduce((total, message) => total + (message.unreadCount ?? (message.direction === 'INBOUND' && !message.readAt ? 1 : 0)), 0);
-    const totalMessages = smsOverview.reduce((total, message) => total + (message.messageCount ?? 1), 0);
-
+    const unread = smsOverview.filter((message) => message.direction === 'INBOUND' && !message.readAt);
     return (
       <>
-        <header className="page-header premium-header">
-          <div>
-            <div className="eyebrow">SMS Centre</div>
-            <h2>SMS Overview</h2>
-            <p>Latest Esendex conversations grouped by client, with unread replies pushed to the top.</p>
-          </div>
-          <div className="header-actions">
-            {notificationPermission !== 'granted' && <button className="secondary" onClick={enableSmsNotifications}>Enable browser alerts</button>}
-            <button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button>
-          </div>
-        </header>
+        <header className="page-header premium-header"><div><div className="eyebrow">SMS Centre</div><h2>SMS Overview</h2><p>Inbound Esendex replies and sent SMS history across all clients.</p></div><div className="header-actions"><button className="secondary" onClick={enableBrowserNotifications}>{browserNotificationsEnabled ? 'Notifications on' : 'Enable notifications'}</button><button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button></div></header>
         <section className="card premium-panel">
-          <div className="sms-overview-stats">
-            <div><strong>{totalMessages}</strong><span>Total SMS messages</span></div>
-            <div className={unread > 0 ? 'sms-stat-alert' : ''}><strong>{unread}</strong><span>Unread replies</span></div>
-          </div>
+          <div className="sms-overview-stats"><div><strong>{smsOverview.length}</strong><span>Client threads</span></div><div className={unreadSmsCount > 0 ? 'sms-stat-alert' : ''}><strong>{unreadSmsCount}</strong><span>Unread replies</span></div></div>
           <div className="sms-overview-list">
-            {smsOverview.length === 0 ? <p className="muted-text">No SMS messages yet.</p> : smsOverview.map((message) => {
-              const rowUnread = message.unreadCount ?? (message.direction === 'INBOUND' && !message.readAt ? 1 : 0);
-              return (
-                <div key={message.id} className={'sms-overview-item ' + (rowUnread > 0 ? 'unread' : '')}>
-                  <div>
-                    <div className="sms-overview-client">
-                      {message.client ? (message.client.reference ? `#${message.client.reference} - ` : ``) + message.client.firstName + ` ` + message.client.lastName : 'Unmatched number'}
-                      {rowUnread > 0 && <span className="sms-row-badge">{rowUnread} unread</span>}
-                    </div>
-                    <p>{message.body}</p>
-                    <small>{message.direction} · {message.status} · {formatDateTime(message.receivedAt || message.latestAt || message.createdAt)} · {message.messageCount ?? 1} message{(message.messageCount ?? 1) === 1 ? '' : 's'}</small>
-                  </div>
-                  <div className="sms-overview-actions">
-                    {message.clientId && <button className="secondary small-button" onClick={async () => {
-                      const client = clients.find((item) => item.id === message.clientId);
-                      if (client) {
-                        await openClient(client);
-                      } else if (message.clientId) {
-                        await loadClientDetail(message.clientId, token, false);
-                        await loadSmsMessages(message.clientId);
-                      }
-                      setClientTab('sms');
-                      setView('clients');
-                    }}>Open thread</button>}
-                  </div>
-                </div>
-              );
-            })}
+            {smsOverview.length === 0 ? <p className="muted-text">No SMS messages yet.</p> : smsOverview.map((message) => (
+              <div key={message.id} className={'sms-overview-item ' + (message.direction === 'INBOUND' && !message.readAt ? 'unread' : '')}>
+                <div><div className="sms-overview-client">{message.client ? (message.client.reference ? `#${message.client.reference} - ` : ``) + message.client.firstName + ` ` + message.client.lastName : 'Unmatched number'}{message.direction === 'INBOUND' && !message.readAt && <span className="sms-row-badge">{message.unreadCount || 1}</span>}</div><p>{message.body}</p><small>{message.direction} · {message.status} · {formatDateTime(message.receivedAt || message.createdAt)}</small></div>
+                <div className="sms-overview-actions">{message.clientId && <button className="secondary small-button" onClick={async () => { const client = clients.find((item) => item.id === message.clientId); if (client) { await openClient(client); } else if (message.clientId) { await loadClientDetail(message.clientId); await loadSmsMessages(message.clientId); } setClientTab('sms'); setView('clients'); }}>Open thread</button>}</div>
+              </div>
+            ))}
           </div>
         </section>
       </>
@@ -3554,7 +3479,8 @@ function renderPlaceholder(title: string) {
             Global Tasks
           </button>
           <button className={`nav-item ${view === 'sms' ? 'active' : ''}`} onClick={() => { loadSmsOverview(); setView('sms'); }}>
-            SMS Overview {unreadSmsCount > 0 && <span className="nav-badge">{unreadSmsCount}</span>}
+            <span>SMS Overview</span>
+            {unreadSmsCount > 0 && <span className="nav-badge">{unreadSmsCount}</span>}
           </button>
           <button className={`nav-item ${view === 'reporting' ? 'active' : ''}`} onClick={() => setView('reporting')}>
             Reporting
