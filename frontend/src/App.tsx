@@ -66,10 +66,6 @@ type SmsMessageItem = {
   readAt?: string | null;
   receivedAt?: string | null;
   createdAt: string;
-  unreadCount?: number;
-  messageCount?: number;
-  latestAt?: string;
-  threadMessages?: SmsMessageItem[];
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
 };
 type LoanData = {
@@ -399,10 +395,6 @@ const [smsOverview, setSmsOverview] = useState<SmsMessageItem[]>([]);
 const [smsBody, setSmsBody] = useState('');
 const [selectedSmsTemplateId, setSelectedSmsTemplateId] = useState('');
 const [sendingSms, setSendingSms] = useState(false);
-const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
-  if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
-  return Notification.permission;
-});
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -670,10 +662,9 @@ function maxLoanAtLtv(targetLtv: number) {
     }
 
     const data = await response.json();
-    const wasSameClient = selectedClientId === id;
     setSelectedClient(data);
     setSelectedClientId(id);
-    if (!wasSameClient) setClientTab('overview');
+    setClientTab('overview');
     populateClientWorkspace(data);
   }
 
@@ -1136,7 +1127,8 @@ async function updateClientTaskStatus(
 async function createClientTask(
   title: string,
   description: string,
-  dueAt?: string
+  dueAt?: string,
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM'
 ) {
   if (!selectedClientId) return;
 
@@ -1151,6 +1143,7 @@ async function createClientTask(
       title,
       description,
       dueAt: dueAt || null,
+      priority,
     }),
   });
 
@@ -1162,6 +1155,29 @@ async function createClientTask(
   await loadClientTasks(selectedClientId);
   await loadGlobalTasks();
   setSuccess('Task created successfully.');
+}
+
+async function createManualTaskFromForm() {
+  if (!taskForm.title.trim()) {
+    setError('Task title is required.');
+    return;
+  }
+
+  if ((taskForm.date && !taskForm.time) || (!taskForm.date && taskForm.time)) {
+    setError('Please enter both a task date and time so it syncs to Outlook correctly.');
+    return;
+  }
+
+  const dueAt = taskForm.date && taskForm.time ? `${taskForm.date}T${taskForm.time}` : undefined;
+
+  await createClientTask(
+    taskForm.title.trim(),
+    taskForm.description.trim(),
+    dueAt,
+    taskForm.priority
+  );
+
+  setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
 }
 async function loadTemplates(activeToken = token) {
   const response = await fetch(API_URL + '/templates', {
@@ -1292,150 +1308,6 @@ async function sendSmsMessage() {
   await loadSmsOverview();
   await loadClientDetail(selectedClientId);
   setSuccess('SMS sent successfully.');
-}
-
-function findClientFromPrompt(input: string) {
-  const term = input.trim().toLowerCase();
-  if (!term) return null;
-
-  return clients.find((client) => {
-    const reference = client.reference ? String(client.reference) : '';
-    const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
-    const mobile = client.mobile || '';
-    return reference === term || fullName.includes(term) || mobile.replace(/\D/g, '').includes(term.replace(/\D/g, ''));
-  }) || null;
-}
-
-async function assignUnmatchedSms(message: SmsMessageItem) {
-  const input = window.prompt('Enter client reference, name, or mobile number to assign this SMS thread to:');
-  if (!input) return;
-
-  const client = findClientFromPrompt(input);
-  if (!client) {
-    setError('Could not find a matching client. Try using the exact client reference number.');
-    return;
-  }
-
-  const confirmed = window.confirm(`Assign this unmatched SMS thread to ${client.firstName} ${client.lastName}?`);
-  if (!confirmed) return;
-
-  const response = await fetch(API_URL + '/messages/' + message.id + '/assign-client', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-    body: JSON.stringify({ clientId: client.id }),
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    setError(data.message || 'Could not assign SMS thread.');
-    return;
-  }
-
-  await loadSmsOverview();
-  await openClient(client);
-  setClientTab('sms');
-  setView('clients');
-  setSuccess('SMS thread assigned to client.');
-}
-
-async function replyToUnmatchedSms(message: SmsMessageItem) {
-  const body = window.prompt('Type reply to send to ' + (message.fromNumber || 'this number') + ':');
-  if (!body || !body.trim()) return;
-
-  const response = await fetch(API_URL + '/messages/unmatched/' + message.id + '/reply', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-    body: JSON.stringify({ body }),
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    setError(data.message || 'Could not reply to unmatched SMS.');
-    return;
-  }
-
-  await loadSmsOverview();
-  setView('sms');
-  setSuccess('Reply sent to unmatched number.');
-}
-
-async function archiveUnmatchedSms(message: SmsMessageItem) {
-  const confirmed = window.confirm('Archive this unmatched SMS thread so it no longer appears as needing attention?');
-  if (!confirmed) return;
-
-  const response = await fetch(API_URL + '/messages/unmatched/' + message.id + '/archive', {
-    method: 'PATCH',
-    headers: { Authorization: 'Bearer ' + token },
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    setError(data.message || 'Could not archive unmatched SMS.');
-    return;
-  }
-
-  await loadSmsOverview();
-  setView('sms');
-  setSuccess('Unmatched SMS thread archived.');
-}
-
-async function enableSmsNotifications() {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    setError('Browser notifications are not supported in this browser.');
-    return;
-  }
-
-  const permission = await Notification.requestPermission();
-  setNotificationPermission(permission);
-
-  if (permission === 'granted') {
-    setSuccess('Browser notifications enabled.');
-  } else {
-    setError('Browser notifications were not enabled. You can allow them in your browser site settings.');
-  }
-}
-
-function groupSmsOverviewThreads(messages: SmsMessageItem[]) {
-  const map = new Map<string, SmsMessageItem & { threadMessages?: SmsMessageItem[] }>();
-
-  for (const message of messages) {
-    const key = message.clientId ? 'client:' + message.clientId : 'unmatched:' + (message.fromNumber || message.toNumber || message.id);
-    const existing = map.get(key);
-    const unreadIncrement = message.direction === 'INBOUND' && !message.readAt ? 1 : 0;
-
-    if (!existing) {
-      map.set(key, {
-        ...message,
-        unreadCount: unreadIncrement,
-        messageCount: 1,
-        latestAt: message.receivedAt || message.createdAt,
-        threadMessages: [message],
-      });
-      continue;
-    }
-
-    existing.messageCount = (existing.messageCount || 1) + 1;
-    existing.unreadCount = (existing.unreadCount || 0) + unreadIncrement;
-    existing.threadMessages = [...(existing.threadMessages || []), message];
-
-    const currentLatest = new Date(existing.latestAt || existing.receivedAt || existing.createdAt).getTime();
-    const messageLatest = new Date(message.receivedAt || message.createdAt).getTime();
-    if (messageLatest > currentLatest) {
-      Object.assign(existing, {
-        ...message,
-        unreadCount: existing.unreadCount,
-        messageCount: existing.messageCount,
-        threadMessages: existing.threadMessages,
-        latestAt: message.receivedAt || message.createdAt,
-      });
-    }
-  }
-
-  return Array.from(map.values()).sort((a, b) => {
-    const unreadDiff = (b.unreadCount || 0) - (a.unreadCount || 0);
-    if (unreadDiff !== 0) return unreadDiff;
-    return new Date(b.latestAt || b.receivedAt || b.createdAt).getTime() - new Date(a.latestAt || a.receivedAt || a.createdAt).getTime();
-  });
 }
 
 function formatDate(value: string) {
@@ -3181,19 +3053,77 @@ function renderTasksTab() {
         <span>{clientTasks.length} total</span>
       </div>
 
-      <div className="form-actions" style={{ marginBottom: '16px' }}>
-        <button
-          className="secondary"
-          onClick={() =>
-            void createClientTask(
-              'Manual follow-up',
-              'Follow up with client.',
-              undefined
-            )
-          }
-        >
-          Add quick task
-        </button>
+      <div className="manual-task-panel">
+        <div className="table-header">
+          <div>
+            <h4>Add manual task / callback</h4>
+            <p className="muted-text">Add a date and time to sync this task into Outlook Calendar.</p>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <div>
+            <label>Task title</label>
+            <input
+              value={taskForm.title}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g. Call back client"
+            />
+          </div>
+
+          <div>
+            <label>Priority</label>
+            <select
+              value={taskForm.priority}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, priority: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' }))}
+            >
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Date</label>
+            <input
+              type="date"
+              value={taskForm.date}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, date: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label>Time</label>
+            <input
+              type="time"
+              value={taskForm.time}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, time: e.target.value }))}
+            />
+          </div>
+
+          <div className="full-width">
+            <label>Notes</label>
+            <textarea
+              className="task-notes-textarea"
+              value={taskForm.description}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, description: e.target.value }))}
+              rows={4}
+              placeholder="Add task notes or call-back details"
+            />
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button
+            className="secondary"
+            onClick={() => setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' })}
+          >
+            Clear
+          </button>
+          <button className="primary" onClick={() => void createManualTaskFromForm()}>
+            Save task + sync Outlook
+          </button>
+        </div>
       </div>
 
       <div className="tasks-section">
@@ -3215,7 +3145,7 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-meta">
-                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
+                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>{task.outlookEventIds ? <span className="tag green">Outlook synced</span> : null}
                 </div>
 
                 <div className="task-actions">
@@ -3272,7 +3202,7 @@ function renderTasksTab() {
                 </div>
 
                 <div className="task-meta">
-                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>
+                  <span>Due: {task.dueAt ? formatDateTime(task.dueAt) : 'No due date'}</span>{task.outlookEventIds ? <span className="tag green">Outlook synced</span> : null}
                 </div>
               </div>
             ))}
@@ -3393,7 +3323,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={10} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={5} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
@@ -3402,102 +3332,19 @@ function renderNotesTab() {
   }
 
   function renderSmsOverview() {
-    const smsThreads = groupSmsOverviewThreads(smsOverview.filter((message) => message.status !== 'ARCHIVED'));
-    const matchedThreads = smsThreads.filter((message) => message.clientId);
-    const unmatchedThreads = smsThreads.filter((message) => !message.clientId);
-    const unread = smsThreads.reduce((total, message) => total + (message.unreadCount ?? (message.direction === 'INBOUND' && !message.readAt ? 1 : 0)), 0);
-    const totalMessages = smsThreads.reduce((total, message) => total + (message.messageCount ?? 1), 0);
-    const needsReply = smsThreads.filter((message) => (message.unreadCount || 0) > 0).length;
-
-    const renderThreadCard = (message: SmsMessageItem & { threadMessages?: SmsMessageItem[] }, unmatched = false) => {
-      const rowUnread = message.unreadCount ?? (message.direction === 'INBOUND' && !message.readAt ? 1 : 0);
-      const title = message.client
-        ? (message.client.reference ? `#${message.client.reference} - ` : ``) + message.client.firstName + ` ` + message.client.lastName
-        : (message.fromNumber || message.toNumber || 'Unmatched number');
-      const subtitle = message.client?.mobile || message.fromNumber || message.toNumber || 'No number captured';
-
-      return (
-        <article key={(unmatched ? 'unmatched-' : 'matched-') + message.id} className={'sms-thread-card ' + (rowUnread > 0 ? 'needs-reply' : '') + (unmatched ? ' unmatched' : '')}>
-          <div className="sms-thread-main">
-            <div className="sms-thread-avatar">{message.client ? `${message.client.firstName?.[0] || ''}${message.client.lastName?.[0] || ''}` : '?'}</div>
-            <div className="sms-thread-copy">
-              <div className="sms-thread-title-row">
-                <strong>{title}</strong>
-                {rowUnread > 0 && <span className="sms-row-badge">{rowUnread}</span>}
-              </div>
-              <div className="sms-thread-subtitle">{subtitle}</div>
-              <p>{message.body}</p>
-              <div className="sms-thread-meta">
-                <span className={message.direction === 'INBOUND' ? 'sms-direction inbound' : 'sms-direction outbound'}>{message.direction === 'INBOUND' ? 'Inbound reply' : 'Outbound SMS'}</span>
-                <span>{message.status}</span>
-                <span>{formatDateTime(message.receivedAt || message.latestAt || message.createdAt)}</span>
-                <span>{message.messageCount ?? 1} message{(message.messageCount ?? 1) === 1 ? '' : 's'}</span>
-              </div>
-            </div>
-          </div>
-          <div className="sms-thread-actions">
-            {message.clientId ? (
-              <button className="secondary small-button" onClick={async () => {
-                const client = clients.find((item) => item.id === message.clientId);
-                if (client) {
-                  await openClient(client);
-                } else if (message.clientId) {
-                  await loadClientDetail(message.clientId, token);
-                  await loadSmsMessages(message.clientId);
-                }
-                setClientTab('sms');
-                setView('clients');
-              }}>Open thread</button>
-            ) : (
-              <>
-                <button className="primary small-button" onClick={() => assignUnmatchedSms(message)}>Assign</button>
-                <button className="secondary small-button" onClick={() => replyToUnmatchedSms(message)}>Reply</button>
-                <button className="danger-button small-button" onClick={() => archiveUnmatchedSms(message)}>Archive</button>
-              </>
-            )}
-          </div>
-        </article>
-      );
-    };
-
+    const unread = smsOverview.filter((message) => message.direction === 'INBOUND' && !message.readAt);
     return (
       <>
-        <header className="page-header premium-header">
-          <div>
-            <div className="eyebrow">SMS Centre</div>
-            <h2>SMS Overview</h2>
-            <p>Prioritised SMS inbox for Esendex replies, unmatched numbers, and active client conversations.</p>
-          </div>
-          <div className="header-actions">
-            {notificationPermission !== 'granted' && <button className="secondary" onClick={enableSmsNotifications}>Enable browser alerts</button>}
-            <button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button>
-          </div>
-        </header>
-
-        <section className="sms-command-centre">
-          <div className="sms-command-card"><span>Client threads</span><strong>{matchedThreads.length}</strong><small>Matched conversations</small></div>
-          <div className="sms-command-card attention"><span>Unread replies</span><strong>{unread}</strong><small>{needsReply} thread{needsReply === 1 ? '' : 's'} need attention</small></div>
-          <div className="sms-command-card"><span>Unmatched</span><strong>{unmatchedThreads.length}</strong><small>Assign, reply, or archive</small></div>
-          <div className="sms-command-card"><span>Total SMS</span><strong>{totalMessages}</strong><small>Across visible threads</small></div>
-        </section>
-
-        {unmatchedThreads.length > 0 && (
-          <section className="card premium-panel sms-inbox-section unmatched-section">
-            <div className="sms-section-header">
-              <div><h3>Unmatched replies</h3><p>These numbers could not be matched automatically. Assign them to a client, reply directly, or archive them.</p></div>
-              <span>{unmatchedThreads.length}</span>
-            </div>
-            <div className="sms-thread-list">{unmatchedThreads.map((message) => renderThreadCard(message, true))}</div>
-          </section>
-        )}
-
-        <section className="card premium-panel sms-inbox-section">
-          <div className="sms-section-header">
-            <div><h3>Client conversations</h3><p>Latest matched client threads, sorted by unread replies and newest activity.</p></div>
-            <span>{matchedThreads.length}</span>
-          </div>
-          <div className="sms-thread-list">
-            {matchedThreads.length === 0 ? <p className="muted-text">No matched SMS conversations yet.</p> : matchedThreads.map((message) => renderThreadCard(message))}
+        <header className="page-header premium-header"><div><div className="eyebrow">SMS Centre</div><h2>SMS Overview</h2><p>Inbound Esendex replies and sent SMS history across all clients.</p></div><button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button></header>
+        <section className="card premium-panel">
+          <div className="sms-overview-stats"><div><strong>{smsOverview.length}</strong><span>Total messages</span></div><div><strong>{unread.length}</strong><span>Unread replies</span></div></div>
+          <div className="sms-overview-list">
+            {smsOverview.length === 0 ? <p className="muted-text">No SMS messages yet.</p> : smsOverview.map((message) => (
+              <div key={message.id} className={'sms-overview-item ' + (message.direction === 'INBOUND' && !message.readAt ? 'unread' : '')}>
+                <div><div className="sms-overview-client">{message.client ? (message.client.reference ? `#${message.client.reference} - ` : ``) + message.client.firstName + ` ` + message.client.lastName : 'Unmatched number'}</div><p>{message.body}</p><small>{message.direction} · {message.status} · {formatDateTime(message.receivedAt || message.createdAt)}</small></div>
+                <div className="sms-overview-actions">{message.clientId && <button className="secondary small-button" onClick={async () => { const client = clients.find((item) => item.id === message.clientId); if (client) { await openClient(client); } else if (message.clientId) { await loadClientDetail(message.clientId); await loadSmsMessages(message.clientId); } setClientTab('sms'); setView('clients'); }}>Open thread</button>}</div>
+              </div>
+            ))}
           </div>
         </section>
       </>
@@ -3578,79 +3425,42 @@ function renderNotesTab() {
   }, {});
   const smsTemplates = templates.filter((template) => template.type === 'SMS');
   const emailTemplates = templates.filter((template) => template.type === 'EMAIL');
-
-  const renderTemplateCard = (template: TemplateItem) => (
-    <article key={template.id} className="template-card">
-      <div>
-        <div className="template-card-head">
-          <strong>{template.name}</strong>
-          <span className={template.active ? 'template-status active' : 'template-status inactive'}>{template.active ? 'Active' : 'Inactive'}</span>
-        </div>
-        {template.subject && <p className="template-subject"><b>Subject:</b> {template.subject}</p>}
-        <p>{template.body}</p>
-      </div>
-      <div className="debt-actions">
-        <button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button>
-        <button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button>
-      </div>
-    </article>
-  );
-
   return (
     <>
-      <header className="page-header premium-header">
-        <div><div className="eyebrow">Administration</div><h2>Admin Centre</h2><p>Manage SMS/email templates and the creditor master list.</p></div>
-        <button className="secondary" onClick={() => loadTemplates()}>Refresh templates</button>
-      </header>
-
-      <section className="admin-command-centre">
-        <div className="admin-command-card"><span>SMS templates</span><strong>{smsTemplates.length}</strong><small>Text message templates</small></div>
-        <div className="admin-command-card"><span>Email templates</span><strong>{emailTemplates.length}</strong><small>Email content templates</small></div>
-        <div className="admin-command-card"><span>Creditors</span><strong>{sortedCreditors.length}</strong><small>Master creditor list</small></div>
-      </section>
-
+      <header className="page-header premium-header"><div><div className="eyebrow">Administration</div><h2>Admin Centre</h2><p>Manage SMS/email templates and the creditor master list.</p></div><button className="secondary" onClick={() => loadTemplates()}>Refresh templates</button></header>
       <section className="admin-accordion">
-        <details className="card premium-panel admin-details">
-          <summary><div><h3>Add / edit template</h3><p>Create SMS and email templates with merge variables.</p></div><span>{editingTemplateId ? 'Editing' : 'Closed'}</span></summary>
-          <div className="admin-panel-body">
-            <section className="detail-section admin-sub-panel">
+        <details className="card premium-panel admin-details" open>
+          <summary><div><h3>Templates</h3><p>SMS and email templates with merge variables.</p></div><span>{templates.length} templates</span></summary>
+          <div className="detail-sections">
+            <section className="detail-section">
               <div className="table-header"><h4>{editingTemplateId ? 'Edit template' : 'Add template'}</h4>{editingTemplateId && <button className="secondary" onClick={resetTemplateForm}>Cancel edit</button>}</div>
               <div className="form-grid">
-                <div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="e.g. Initial SMS - Choose Wisely" /></div>
+                <div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
                 <div><label>Template type</label><select value={templateForm.type} onChange={(e) => setTemplateForm((prev) => ({ ...prev, type: e.target.value as 'SMS' | 'EMAIL' }))}><option value="SMS">SMS</option><option value="EMAIL">Email</option></select></div>
                 {templateForm.type === 'EMAIL' && <div className="full-width"><label>Email subject</label><input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} /></div>}
-                <div className="full-width"><label>Template body</label><textarea className="template-body-textarea" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={10} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
+                <div className="full-width"><label>Template body</label><textarea value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={8} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
                 <label className="checkbox-row"><input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} /> Active</label>
               </div>
               <div className="form-actions"><button className="secondary" onClick={resetTemplateForm}>Clear</button><button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Add template'}</button></div>
             </section>
+            <section className="detail-section">
+              <div className="table-header"><h4>SMS templates</h4><span>{smsTemplates.length}</span></div>
+              <div className="template-list">{smsTemplates.length === 0 ? <p className="muted-text">No SMS templates yet.</p> : smsTemplates.map((template) => <div key={template.id} className="template-item"><div><strong>{template.name}</strong><p>{template.body}</p><small>{template.active ? 'Active' : 'Inactive'}</small></div><div className="debt-actions"><button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button><button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button></div></div>)}</div>
+              <div className="table-header template-subhead"><h4>Email templates</h4><span>{emailTemplates.length}</span></div>
+              <div className="template-list">{emailTemplates.length === 0 ? <p className="muted-text">No email templates yet.</p> : emailTemplates.map((template) => <div key={template.id} className="template-item"><div><strong>{template.name}</strong>{template.subject && <p><b>Subject:</b> {template.subject}</p>}<p>{template.body}</p><small>{template.active ? 'Active' : 'Inactive'}</small></div><div className="debt-actions"><button className="secondary small-button" onClick={() => editTemplate(template)}>Edit</button><button className="danger-button small-button" onClick={() => deleteTemplate(template.id)}>Delete</button></div></div>)}</div>
+            </section>
           </div>
         </details>
-
-        <details className="card premium-panel admin-details">
-          <summary><div><h3>SMS templates</h3><p>Collapsed SMS template library.</p></div><span>{smsTemplates.length} templates</span></summary>
-          <div className="admin-panel-body">
-            <div className="template-grid">{smsTemplates.length === 0 ? <p className="muted-text">No SMS templates yet.</p> : smsTemplates.map(renderTemplateCard)}</div>
-          </div>
-        </details>
-
-        <details className="card premium-panel admin-details">
-          <summary><div><h3>Email templates</h3><p>Collapsed email template library.</p></div><span>{emailTemplates.length} templates</span></summary>
-          <div className="admin-panel-body">
-            <div className="template-grid">{emailTemplates.length === 0 ? <p className="muted-text">No email templates yet.</p> : emailTemplates.map(renderTemplateCard)}</div>
-          </div>
-        </details>
-
-        <details className="card premium-panel admin-details">
+        <details className="card premium-panel admin-details" open>
           <summary><div><h3>Creditor Master List</h3><p>Collapsible A-Z creditor list used in the debts tab.</p></div><span>{sortedCreditors.length} creditors</span></summary>
-          <div className="admin-panel-body detail-sections">
-            <section className="detail-section admin-sub-panel">
+          <div className="detail-sections">
+            <section className="detail-section">
               <div className="table-header"><h4>{editingCreditorId ? 'Edit creditor' : 'Add creditor'}</h4>{editingCreditorId && <button className="secondary" onClick={resetCreditorAdminForm}>Cancel edit</button>}</div>
               <div className="form-grid"><div className="full-width"><label>Creditor name</label><input value={creditorAdminName} onChange={(e) => setCreditorAdminName(e.target.value)} placeholder="Enter creditor name" /></div></div>
               <div className="form-actions"><button className="secondary" onClick={resetCreditorAdminForm}>Clear</button><button className="primary" onClick={addOrUpdateCreditor}>{editingCreditorId ? 'Update creditor' : 'Add creditor'}</button></div>
             </section>
-            <section className="detail-section admin-sub-panel">
-              {Object.entries(creditorsByLetter).map(([letter, items]) => <details key={letter} className="creditor-letter-group"><summary>{letter}<span>{items.length}</span></summary><div className="creditor-admin-list">{items.map((item) => <div key={item.id} className="creditor-admin-item"><strong>{item.name}</strong><div className="debt-actions"><button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button><button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button></div></div>)}</div></details>)}
+            <section className="detail-section">
+              {Object.entries(creditorsByLetter).map(([letter, items]) => <details key={letter} className="creditor-letter-group" open={letter === 'A'}><summary>{letter}<span>{items.length}</span></summary><div className="creditor-admin-list">{items.map((item) => <div key={item.id} className="creditor-admin-item"><strong>{item.name}</strong><div className="debt-actions"><button className="secondary small-button" onClick={() => editCreditor(item)}>Edit</button><button className="danger-button small-button" onClick={() => deleteCreditor(item.id)}>Delete</button></div></div>)}</div></details>)}
             </section>
           </div>
         </details>
