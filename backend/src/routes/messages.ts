@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
-import { normaliseUkMobile, sendEsendexSms } from '../services/esendex.js';
+import { createEsendexWebhookSubscription, normaliseUkMobile, sendEsendexSms } from '../services/esendex.js';
 
 export const messagesRouter = Router();
 
@@ -30,41 +30,85 @@ function extractInboundPayload(payload: any) {
 
   return candidates
     .map((item: any) => {
-      const message = item?.message || item;
+      const eventType = firstString(item?.eventType, item?.type, item?.eventName);
+      if (eventType && eventType !== 'sms-message-received') return null;
+
+      const data = item?.data || item?.payload || item?.message || item;
+      const message = data?.message || data;
+
       const fromNumber = firstString(
         message?.from?.msisdn,
         message?.from?.phoneNumber,
         message?.from?.address?.msisdn,
+        message?.from?.number,
         message?.originator,
         message?.sender,
+        message?.senderAddress,
         message?.msisdn,
+        data?.from?.msisdn,
+        data?.from?.phoneNumber,
+        data?.from,
         item?.from?.msisdn,
         item?.from
       );
+
       const toNumber = firstString(
         message?.to?.msisdn,
         message?.to?.phoneNumber,
         message?.recipient?.msisdn,
+        message?.recipient?.phoneNumber,
+        message?.recipientAddress,
         message?.accountReference,
+        data?.to?.msisdn,
+        data?.to?.phoneNumber,
+        data?.to,
         item?.to?.msisdn,
         item?.to
       );
+
       const body = firstString(
         message?.body?.text,
+        message?.body?.value,
         message?.body,
         message?.content?.text,
         message?.content?.body,
         message?.text,
         message?.message,
+        message?.messageBody,
+        data?.body?.text,
+        data?.body,
+        data?.text,
+        data?.message,
         item?.body?.text,
         item?.body,
         item?.text
       );
-      const providerMessageId = firstString(message?.id, message?.messageId, message?.gatewayId, item?.id);
-      const receivedAt = firstString(message?.receivedAt, message?.createdAt, message?.sentAt, item?.receivedAt, item?.createdAt);
+
+      const providerMessageId = firstString(
+        message?.id,
+        message?.messageId,
+        message?.gatewayId,
+        message?.reference,
+        data?.id,
+        data?.messageId,
+        item?.id,
+        item?.eventId
+      );
+
+      const receivedAt = firstString(
+        message?.receivedAt,
+        message?.createdAt,
+        message?.sentAt,
+        data?.receivedAt,
+        data?.createdAt,
+        item?.occurredAt,
+        item?.createdAt,
+        item?.timestamp
+      );
 
       return { fromNumber, toNumber, body, providerMessageId, receivedAt, raw: item };
     })
+    .filter(Boolean)
     .filter((item: { fromNumber?: string; body?: string }) => item.fromNumber && item.body);
 }
 
@@ -78,6 +122,64 @@ async function findClientByMobile(rawMobile: string) {
   return clients.find((client) => client.mobile && normaliseUkMobile(client.mobile) === normalised) || null;
 }
 
+
+function isWebhookSetupAuthorised(req: any) {
+  const setupSecret = process.env.ESENDEX_WEBHOOK_SETUP_SECRET;
+
+  if (!setupSecret) {
+    return process.env.NODE_ENV !== 'production';
+  }
+
+  const suppliedSecret = firstString(
+    req.query?.setupKey,
+    req.headers?.['x-webhook-setup-secret'],
+    req.body?.setupKey
+  );
+
+  return suppliedSecret === setupSecret;
+}
+
+async function handleCreateWebhookSubscription(req: any, res: any) {
+  if (!isWebhookSetupAuthorised(req)) {
+    return res.status(401).json({
+      message: 'Webhook setup is not authorised. Add ESENDEX_WEBHOOK_SETUP_SECRET in Render and pass it as ?setupKey=...',
+    });
+  }
+
+  try {
+    const result = await createEsendexWebhookSubscription();
+    return res.status(201).json({
+      message: 'Esendex webhook subscription created.',
+      eventType: result.eventType,
+      callbackUrl: result.callbackUrl,
+      result: result.raw,
+    });
+  } catch (error) {
+    const err = error as Error & { status?: number; details?: unknown };
+    console.error('ESENDEX WEBHOOK SUBSCRIPTION FAILED', {
+      status: err.status,
+      message: err.message,
+      details: err.details,
+    });
+
+    return res.status(err.status || 502).json({
+      message: err.message || 'Could not create Esendex webhook subscription.',
+      details: err.details,
+    });
+  }
+}
+
+messagesRouter.get('/esendex/webhook-health', (_req, res) => {
+  res.json({
+    ok: true,
+    eventType: process.env.ESENDEX_INBOUND_EVENT_TYPE || 'sms-message-received',
+    webhookUrl: `${(process.env.PUBLIC_BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://tmac-crm-web.onrender.com').replace(/\/$/, '')}/api/messages/esendex/webhook`,
+  });
+});
+
+messagesRouter.post('/esendex/create-webhook-subscription', handleCreateWebhookSubscription);
+messagesRouter.get('/esendex/create-webhook-subscription', handleCreateWebhookSubscription);
+
 messagesRouter.post('/esendex/webhook', async (req, res) => {
   const inboundMessages = extractInboundPayload(req.body);
 
@@ -90,6 +192,14 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
     const client = await findClientByMobile(inbound.fromNumber);
 
     if (!client) {
+      if (inbound.providerMessageId) {
+        const existing = await prisma.smsMessage.findFirst({
+          where: { provider: 'ESENDEX', providerMessageId: inbound.providerMessageId },
+          select: { id: true },
+        });
+        if (existing) continue;
+      }
+
       await prisma.smsMessage.create({
         data: {
           direction: 'INBOUND',
@@ -104,6 +214,14 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
         },
       });
       continue;
+    }
+
+    if (inbound.providerMessageId) {
+      const existing = await prisma.smsMessage.findFirst({
+        where: { provider: 'ESENDEX', providerMessageId: inbound.providerMessageId },
+        select: { id: true },
+      });
+      if (existing) continue;
     }
 
     const smsMessage = await prisma.smsMessage.create({
