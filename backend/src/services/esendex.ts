@@ -105,17 +105,25 @@ export async function createEsendexWebhookSubscription(): Promise<EsendexWebhook
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // Esendex docs/reference examples vary between X-Api-Key and Api-Key.
+      // Supplying both is harmless and avoids header-name mismatch.
       'X-Api-Key': apiKey,
+      'Api-Key': apiKey,
       AccountReference: accountReference,
     },
-    body: JSON.stringify({
-      eventType,
-      callbacks: [
-        {
-          url: callbackUrl,
-        },
-      ],
-    }),
+    // Esendex v2 expects an array of CreateSubscriptionBody objects at the root.
+    // Sending a single object causes:
+    // "could not be converted to IEnumerable<CreateSubscriptionBody>"
+    body: JSON.stringify([
+      {
+        eventType,
+        callbacks: [
+          {
+            url: callbackUrl,
+          },
+        ],
+      },
+    ]),
   });
 
   const raw = await readJsonResponse(response);
