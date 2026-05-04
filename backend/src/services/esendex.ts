@@ -105,8 +105,9 @@ export async function createEsendexWebhookSubscription(): Promise<EsendexWebhook
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      // Esendex confirmed these exact header names.
-      // Do not add Authorization / Api-Key / Content-Type variants here; the webhook endpoint rejects unauthenticated requests if auth is not exactly right.
+      // Esendex needs the real HTTP media type header to avoid 415,
+      // and their docs also list ContentType, so we send both.
+      'Content-Type': 'application/json',
       ContentType: 'application/json',
       'X-Api-Key': apiKey,
       AccountReference: accountReference,
