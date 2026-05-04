@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
-import { createEsendexWebhookSubscription, normaliseUkMobile, sendEsendexSms } from '../services/esendex.js';
+import { normaliseUkMobile, sendEsendexSms } from '../services/esendex.js';
 
 export const messagesRouter = Router();
 
@@ -20,95 +20,123 @@ function firstString(...values: unknown[]) {
 }
 
 function extractInboundPayload(payload: any) {
-  const candidates = Array.isArray(payload?.messages)
+  const rootCandidates = Array.isArray(payload?.messages)
     ? payload.messages
-    : Array.isArray(payload?.events)
-      ? payload.events
-      : Array.isArray(payload)
-        ? payload
-        : [payload];
+    : Array.isArray(payload?.Messages)
+      ? payload.Messages
+      : Array.isArray(payload?.events)
+        ? payload.events
+        : Array.isArray(payload?.Events)
+          ? payload.Events
+          : Array.isArray(payload)
+            ? payload
+            : [payload];
 
-  return candidates
+  return rootCandidates
     .map((item: any) => {
-      const eventType = firstString(item?.eventType, item?.type, item?.eventName);
-      if (eventType && eventType !== 'sms-message-received') return null;
-
-      const data = item?.data || item?.payload || item?.message || item;
-      const message = data?.message || data;
+      // Esendex v2 sms-message-received currently arrives as:
+      // { Message: { Body, Originator, Msisdn, MessageId, OccurredAtTime, ... } }
+      // Keep this deliberately flexible because Esendex can add fields/change casing.
+      const message = item?.Message || item?.message || item?.data?.Message || item?.data?.message || item;
 
       const fromNumber = firstString(
+        message?.Originator,
+        message?.originator,
+        message?.From,
+        message?.from,
         message?.from?.msisdn,
         message?.from?.phoneNumber,
         message?.from?.address?.msisdn,
-        message?.from?.number,
-        message?.originator,
+        message?.Sender,
         message?.sender,
-        message?.senderAddress,
+        message?.Msisdn,
         message?.msisdn,
-        data?.from?.msisdn,
-        data?.from?.phoneNumber,
-        data?.from,
+        item?.Originator,
+        item?.originator,
         item?.from?.msisdn,
         item?.from
       );
 
       const toNumber = firstString(
+        message?.Address,
+        message?.address,
+        message?.To,
+        message?.to,
         message?.to?.msisdn,
         message?.to?.phoneNumber,
         message?.recipient?.msisdn,
-        message?.recipient?.phoneNumber,
-        message?.recipientAddress,
+        message?.AccountReference,
         message?.accountReference,
-        data?.to?.msisdn,
-        data?.to?.phoneNumber,
-        data?.to,
         item?.to?.msisdn,
         item?.to
       );
 
       const body = firstString(
-        message?.body?.text,
-        message?.body?.value,
+        message?.Body,
         message?.body,
+        message?.body?.text,
+        message?.Content,
+        message?.content,
         message?.content?.text,
         message?.content?.body,
+        message?.Text,
         message?.text,
+        message?.MessageText,
+        message?.messageText,
         message?.message,
-        message?.messageBody,
-        data?.body?.text,
-        data?.body,
-        data?.text,
-        data?.message,
+        item?.Body,
         item?.body?.text,
         item?.body,
         item?.text
       );
 
       const providerMessageId = firstString(
-        message?.id,
+        message?.MessageId,
         message?.messageId,
+        message?.id,
         message?.gatewayId,
-        message?.reference,
-        data?.id,
-        data?.messageId,
-        item?.id,
-        item?.eventId
+        item?.MessageId,
+        item?.messageId,
+        item?.id
+      );
+
+      const providerRequestId = firstString(
+        message?.MostRecentOutboundRequestId,
+        message?.mostRecentOutboundRequestId,
+        message?.RequestId,
+        message?.requestId
+      );
+
+      const conversationId = firstString(
+        message?.ConversationId,
+        message?.conversationId,
+        item?.ConversationId,
+        item?.conversationId
       );
 
       const receivedAt = firstString(
+        message?.OccurredAtTime,
+        message?.occurredAtTime,
         message?.receivedAt,
         message?.createdAt,
         message?.sentAt,
-        data?.receivedAt,
-        data?.createdAt,
-        item?.occurredAt,
-        item?.createdAt,
-        item?.timestamp
+        item?.OccurredAtTime,
+        item?.occurredAtTime,
+        item?.receivedAt,
+        item?.createdAt
       );
 
-      return { fromNumber, toNumber, body, providerMessageId, receivedAt, raw: item };
+      return {
+        fromNumber,
+        toNumber,
+        body,
+        providerMessageId,
+        providerRequestId,
+        conversationId,
+        receivedAt,
+        raw: item,
+      };
     })
-    .filter(Boolean)
     .filter((item: { fromNumber?: string; body?: string }) => item.fromNumber && item.body);
 }
 
@@ -122,64 +150,6 @@ async function findClientByMobile(rawMobile: string) {
   return clients.find((client) => client.mobile && normaliseUkMobile(client.mobile) === normalised) || null;
 }
 
-
-function isWebhookSetupAuthorised(req: any) {
-  const setupSecret = process.env.ESENDEX_WEBHOOK_SETUP_SECRET;
-
-  if (!setupSecret) {
-    return process.env.NODE_ENV !== 'production';
-  }
-
-  const suppliedSecret = firstString(
-    req.query?.setupKey,
-    req.headers?.['x-webhook-setup-secret'],
-    req.body?.setupKey
-  );
-
-  return suppliedSecret === setupSecret;
-}
-
-async function handleCreateWebhookSubscription(req: any, res: any) {
-  if (!isWebhookSetupAuthorised(req)) {
-    return res.status(401).json({
-      message: 'Webhook setup is not authorised. Add ESENDEX_WEBHOOK_SETUP_SECRET in Render and pass it as ?setupKey=...',
-    });
-  }
-
-  try {
-    const result = await createEsendexWebhookSubscription();
-    return res.status(201).json({
-      message: 'Esendex webhook subscription created.',
-      eventType: result.eventType,
-      callbackUrl: result.callbackUrl,
-      result: result.raw,
-    });
-  } catch (error) {
-    const err = error as Error & { status?: number; details?: unknown };
-    console.error('ESENDEX WEBHOOK SUBSCRIPTION FAILED', {
-      status: err.status,
-      message: err.message,
-      details: err.details,
-    });
-
-    return res.status(err.status || 502).json({
-      message: err.message || 'Could not create Esendex webhook subscription.',
-      details: err.details,
-    });
-  }
-}
-
-messagesRouter.get('/esendex/webhook-health', (_req, res) => {
-  res.json({
-    ok: true,
-    eventType: process.env.ESENDEX_INBOUND_EVENT_TYPE || 'sms-message-received',
-    webhookUrl: `${(process.env.PUBLIC_BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'https://tmac-crm-web.onrender.com').replace(/\/$/, '')}/api/messages/esendex/webhook`,
-  });
-});
-
-messagesRouter.post('/esendex/create-webhook-subscription', handleCreateWebhookSubscription);
-messagesRouter.get('/esendex/create-webhook-subscription', handleCreateWebhookSubscription);
-
 messagesRouter.post('/esendex/webhook', async (req, res) => {
   const inboundMessages = extractInboundPayload(req.body);
 
@@ -192,13 +162,12 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
     const client = await findClientByMobile(inbound.fromNumber);
 
     if (!client) {
-      if (inbound.providerMessageId) {
-        const existing = await prisma.smsMessage.findFirst({
-          where: { provider: 'ESENDEX', providerMessageId: inbound.providerMessageId },
-          select: { id: true },
-        });
-        if (existing) continue;
-      }
+      console.warn('Esendex inbound SMS could not be matched to a client mobile', {
+        fromNumber: inbound.fromNumber,
+        normalisedFromNumber: normaliseUkMobile(inbound.fromNumber),
+        body: inbound.body,
+        providerMessageId: inbound.providerMessageId || null,
+      });
 
       await prisma.smsMessage.create({
         data: {
@@ -209,19 +178,12 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
           status: 'UNMATCHED',
           provider: 'ESENDEX',
           providerMessageId: inbound.providerMessageId || null,
+          providerRequestId: inbound.providerRequestId || null,
           responseJson: inbound.raw as any,
           receivedAt: inbound.receivedAt ? new Date(inbound.receivedAt) : new Date(),
         },
       });
       continue;
-    }
-
-    if (inbound.providerMessageId) {
-      const existing = await prisma.smsMessage.findFirst({
-        where: { provider: 'ESENDEX', providerMessageId: inbound.providerMessageId },
-        select: { id: true },
-      });
-      if (existing) continue;
     }
 
     const smsMessage = await prisma.smsMessage.create({
@@ -234,6 +196,7 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
         status: 'RECEIVED',
         provider: 'ESENDEX',
         providerMessageId: inbound.providerMessageId || null,
+        providerRequestId: inbound.providerRequestId || null,
         responseJson: inbound.raw as any,
         receivedAt: inbound.receivedAt ? new Date(inbound.receivedAt) : new Date(),
       },
@@ -280,7 +243,7 @@ messagesRouter.get('/unread-count', async (_req, res) => {
 messagesRouter.get('/overview', async (_req, res) => {
   const messages = await prisma.smsMessage.findMany({
     orderBy: [{ createdAt: 'desc' }],
-    take: 500,
+    take: 200,
     include: {
       client: {
         select: { id: true, reference: true, firstName: true, lastName: true, mobile: true },
@@ -288,34 +251,7 @@ messagesRouter.get('/overview', async (_req, res) => {
     },
   });
 
-  const conversations = new Map<string, any>();
-
-  for (const message of messages) {
-    const key = message.clientId || message.fromNumber || message.toNumber || message.id;
-    const existing = conversations.get(key);
-
-    if (!existing) {
-      conversations.set(key, {
-        ...message,
-        latestAt: message.receivedAt || message.createdAt,
-        messageCount: 1,
-        unreadCount: message.direction === 'INBOUND' && !message.readAt && message.clientId ? 1 : 0,
-      });
-      continue;
-    }
-
-    existing.messageCount += 1;
-    if (message.direction === 'INBOUND' && !message.readAt && message.clientId) {
-      existing.unreadCount += 1;
-    }
-  }
-
-  const grouped = Array.from(conversations.values()).sort((a, b) => {
-    if ((a.unreadCount || 0) !== (b.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
-    return new Date(b.latestAt || b.createdAt).getTime() - new Date(a.latestAt || a.createdAt).getTime();
-  });
-
-  res.json(grouped);
+  res.json(messages);
 });
 
 messagesRouter.get('/client/:clientId', async (req, res) => {
