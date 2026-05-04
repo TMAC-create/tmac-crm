@@ -66,6 +66,10 @@ type SmsMessageItem = {
   readAt?: string | null;
   receivedAt?: string | null;
   createdAt: string;
+  unreadCount?: number;
+  messageCount?: number;
+  latestAt?: string;
+  threadMessages?: SmsMessageItem[];
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
 };
 type LoanData = {
@@ -395,6 +399,10 @@ const [smsOverview, setSmsOverview] = useState<SmsMessageItem[]>([]);
 const [smsBody, setSmsBody] = useState('');
 const [selectedSmsTemplateId, setSelectedSmsTemplateId] = useState('');
 const [sendingSms, setSendingSms] = useState(false);
+const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
+  return Notification.permission;
+});
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
 useEffect(() => {
@@ -1369,6 +1377,22 @@ async function archiveUnmatchedSms(message: SmsMessageItem) {
   await loadSmsOverview();
   setView('sms');
   setSuccess('Unmatched SMS thread archived.');
+}
+
+async function enableSmsNotifications() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    setError('Browser notifications are not supported in this browser.');
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  setNotificationPermission(permission);
+
+  if (permission === 'granted') {
+    setSuccess('Browser notifications enabled.');
+  } else {
+    setError('Browser notifications were not enabled. You can allow them in your browser site settings.');
+  }
 }
 
 function groupSmsOverviewThreads(messages: SmsMessageItem[]) {
@@ -3369,7 +3393,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={5} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={10} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
