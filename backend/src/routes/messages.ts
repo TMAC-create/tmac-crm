@@ -20,7 +20,7 @@ function firstString(...values: unknown[]) {
 }
 
 function extractInboundPayload(payload: any) {
-  const rootCandidates = Array.isArray(payload?.messages)
+  const candidates = Array.isArray(payload?.messages)
     ? payload.messages
     : Array.isArray(payload?.Messages)
       ? payload.Messages
@@ -32,13 +32,9 @@ function extractInboundPayload(payload: any) {
             ? payload
             : [payload];
 
-  return rootCandidates
+  return candidates
     .map((item: any) => {
-      // Esendex v2 sms-message-received currently arrives as:
-      // { Message: { Body, Originator, Msisdn, MessageId, OccurredAtTime, ... } }
-      // Keep this deliberately flexible because Esendex can add fields/change casing.
       const message = item?.Message || item?.message || item?.data?.Message || item?.data?.message || item;
-
       const fromNumber = firstString(
         message?.Originator,
         message?.originator,
@@ -46,7 +42,6 @@ function extractInboundPayload(payload: any) {
         message?.from,
         message?.from?.msisdn,
         message?.from?.phoneNumber,
-        message?.from?.address?.msisdn,
         message?.Sender,
         message?.sender,
         message?.Msisdn,
@@ -56,21 +51,16 @@ function extractInboundPayload(payload: any) {
         item?.from?.msisdn,
         item?.from
       );
-
       const toNumber = firstString(
         message?.Address,
         message?.address,
         message?.To,
         message?.to,
         message?.to?.msisdn,
-        message?.to?.phoneNumber,
         message?.recipient?.msisdn,
-        message?.AccountReference,
-        message?.accountReference,
         item?.to?.msisdn,
         item?.to
       );
-
       const body = firstString(
         message?.Body,
         message?.body,
@@ -78,76 +68,67 @@ function extractInboundPayload(payload: any) {
         message?.Content,
         message?.content,
         message?.content?.text,
-        message?.content?.body,
         message?.Text,
         message?.text,
         message?.MessageText,
         message?.messageText,
-        message?.message,
         item?.Body,
         item?.body?.text,
         item?.body,
         item?.text
       );
+      const providerMessageId = firstString(message?.MessageId, message?.messageId, message?.id, message?.gatewayId, item?.MessageId, item?.messageId, item?.id);
+      const providerRequestId = firstString(message?.MostRecentOutboundRequestId, message?.mostRecentOutboundRequestId, message?.RequestId, message?.requestId);
+      const receivedAt = firstString(message?.OccurredAtTime, message?.occurredAtTime, message?.receivedAt, message?.createdAt, message?.sentAt, item?.OccurredAtTime, item?.receivedAt, item?.createdAt);
 
-      const providerMessageId = firstString(
-        message?.MessageId,
-        message?.messageId,
-        message?.id,
-        message?.gatewayId,
-        item?.MessageId,
-        item?.messageId,
-        item?.id
-      );
-
-      const providerRequestId = firstString(
-        message?.MostRecentOutboundRequestId,
-        message?.mostRecentOutboundRequestId,
-        message?.RequestId,
-        message?.requestId
-      );
-
-      const conversationId = firstString(
-        message?.ConversationId,
-        message?.conversationId,
-        item?.ConversationId,
-        item?.conversationId
-      );
-
-      const receivedAt = firstString(
-        message?.OccurredAtTime,
-        message?.occurredAtTime,
-        message?.receivedAt,
-        message?.createdAt,
-        message?.sentAt,
-        item?.OccurredAtTime,
-        item?.occurredAtTime,
-        item?.receivedAt,
-        item?.createdAt
-      );
-
-      return {
-        fromNumber,
-        toNumber,
-        body,
-        providerMessageId,
-        providerRequestId,
-        conversationId,
-        receivedAt,
-        raw: item,
-      };
+      return { fromNumber, toNumber, body, providerMessageId, providerRequestId, receivedAt, raw: item };
     })
     .filter((item: { fromNumber?: string; body?: string }) => item.fromNumber && item.body);
 }
 
+function mobileMatchTokens(rawMobile: string | null | undefined) {
+  const normalised = normaliseUkMobile(rawMobile || '');
+  const digits = normalised.replace(/\D/g, '');
+  const without44 = digits.startsWith('44') ? digits.slice(2) : digits;
+  const local = without44 ? `0${without44}` : '';
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  return { normalised, digits, without44, local, last10 };
+}
+
+function mobilesMatch(left: string | null | undefined, right: string | null | undefined) {
+  const a = mobileMatchTokens(left);
+  const b = mobileMatchTokens(right);
+  if (!a.digits || !b.digits) return false;
+  if (a.normalised && b.normalised && a.normalised === b.normalised) return true;
+  if (a.digits === b.digits) return true;
+  if (a.local && b.local && a.local === b.local) return true;
+  return Boolean(a.last10 && b.last10 && a.last10 === b.last10);
+}
+
 async function findClientByMobile(rawMobile: string) {
-  const normalised = normaliseUkMobile(rawMobile);
   const clients = await prisma.client.findMany({
     where: { mobile: { not: null } },
     select: { id: true, mobile: true, firstName: true, lastName: true },
   });
 
-  return clients.find((client) => client.mobile && normaliseUkMobile(client.mobile) === normalised) || null;
+  return clients.find((client) => mobilesMatch(client.mobile, rawMobile)) || null;
+}
+
+async function findClientFromRecentOutbound(inbound: { providerRequestId?: string; providerMessageId?: string; fromNumber?: string }) {
+  const orFilters = [
+    inbound.providerRequestId ? { providerRequestId: inbound.providerRequestId } : null,
+    inbound.providerMessageId ? { providerMessageId: inbound.providerMessageId } : null,
+  ].filter(Boolean) as Array<{ providerRequestId?: string; providerMessageId?: string }>;
+
+  if (orFilters.length === 0) return null;
+
+  const outbound = await prisma.smsMessage.findFirst({
+    where: { direction: 'OUTBOUND', clientId: { not: null }, OR: orFilters },
+    orderBy: { createdAt: 'desc' },
+    include: { client: { select: { id: true, mobile: true, firstName: true, lastName: true } } },
+  });
+
+  return outbound?.client || null;
 }
 
 messagesRouter.post('/esendex/webhook', async (req, res) => {
@@ -159,16 +140,17 @@ messagesRouter.post('/esendex/webhook', async (req, res) => {
   });
 
   for (const inbound of inboundMessages) {
-    const client = await findClientByMobile(inbound.fromNumber);
+    const client = (await findClientByMobile(inbound.fromNumber)) || (await findClientFromRecentOutbound(inbound));
+
+    if (inbound.providerMessageId) {
+      const existing = await prisma.smsMessage.findFirst({
+        where: { provider: 'ESENDEX', providerMessageId: inbound.providerMessageId, direction: 'INBOUND' },
+      });
+      if (existing) continue;
+    }
+
 
     if (!client) {
-      console.warn('Esendex inbound SMS could not be matched to a client mobile', {
-        fromNumber: inbound.fromNumber,
-        normalisedFromNumber: normaliseUkMobile(inbound.fromNumber),
-        body: inbound.body,
-        providerMessageId: inbound.providerMessageId || null,
-      });
-
       await prisma.smsMessage.create({
         data: {
           direction: 'INBOUND',
@@ -242,6 +224,7 @@ messagesRouter.get('/unread-count', async (_req, res) => {
 
 messagesRouter.get('/overview', async (_req, res) => {
   const messages = await prisma.smsMessage.findMany({
+    where: { status: { not: 'ARCHIVED' } },
     orderBy: [{ createdAt: 'desc' }],
     take: 200,
     include: {
@@ -252,6 +235,98 @@ messagesRouter.get('/overview', async (_req, res) => {
   });
 
   res.json(messages);
+});
+
+
+messagesRouter.patch('/:messageId/assign-client', async (req, res) => {
+  const parsed = z.object({ clientId: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Client ID is required.' });
+
+  const message = await prisma.smsMessage.findUnique({ where: { id: req.params.messageId } });
+  if (!message) return res.status(404).json({ message: 'SMS message not found.' });
+
+  const client = await prisma.client.findUnique({ where: { id: parsed.data.clientId } });
+  if (!client) return res.status(404).json({ message: 'Client not found.' });
+
+  const fromNumber = message.fromNumber;
+  const toNumber = message.toNumber;
+
+  await prisma.smsMessage.updateMany({
+    where: {
+      clientId: null,
+      OR: [
+        fromNumber ? { fromNumber } : undefined,
+        toNumber ? { toNumber } : undefined,
+        { id: message.id },
+      ].filter(Boolean) as any,
+    },
+    data: { clientId: client.id, status: 'RECEIVED' },
+  });
+
+  await prisma.activity.create({
+    data: {
+      clientId: client.id,
+      type: 'sms_assigned',
+      description: `Unmatched SMS thread assigned to ${client.firstName} ${client.lastName}.`,
+      payloadJson: { smsMessageId: message.id, fromNumber: message.fromNumber },
+    },
+  });
+
+  res.json({ message: 'SMS thread assigned to client.' });
+});
+
+messagesRouter.patch('/unmatched/:messageId/archive', async (req, res) => {
+  const message = await prisma.smsMessage.findUnique({ where: { id: req.params.messageId } });
+  if (!message) return res.status(404).json({ message: 'SMS message not found.' });
+
+  await prisma.smsMessage.updateMany({
+    where: {
+      clientId: null,
+      OR: [
+        message.fromNumber ? { fromNumber: message.fromNumber } : undefined,
+        message.toNumber ? { toNumber: message.toNumber } : undefined,
+        { id: message.id },
+      ].filter(Boolean) as any,
+    },
+    data: { status: 'ARCHIVED', readAt: new Date() },
+  });
+
+  res.json({ message: 'Unmatched SMS thread archived.' });
+});
+
+messagesRouter.post('/unmatched/:messageId/reply', async (req, res) => {
+  const parsed = z.object({ body: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Reply body is required.' });
+
+  const source = await prisma.smsMessage.findUnique({ where: { id: req.params.messageId } });
+  if (!source) return res.status(404).json({ message: 'SMS message not found.' });
+
+  const toNumber = source.fromNumber || source.toNumber;
+  if (!toNumber) return res.status(400).json({ message: 'No phone number is available for this unmatched SMS.' });
+
+  let sendResult: Awaited<ReturnType<typeof sendEsendexSms>>;
+  try {
+    sendResult = await sendEsendexSms({ to: toNumber, body: parsed.data.body });
+  } catch (error) {
+    const err = error as Error & { status?: number; details?: unknown };
+    return res.status(err.status || 502).json({ message: err.message || 'Could not send SMS through Esendex.', details: err.details });
+  }
+
+  const smsMessage = await prisma.smsMessage.create({
+    data: {
+      direction: 'OUTBOUND',
+      toNumber: normaliseUkMobile(toNumber),
+      fromName: process.env.ESENDEX_SENDER_NAME || 'TMAC',
+      body: parsed.data.body,
+      status: 'SUBMITTED',
+      provider: 'ESENDEX',
+      providerMessageId: sendResult.gatewayId || null,
+      providerRequestId: sendResult.requestId || null,
+      responseJson: sendResult.raw as any,
+    },
+  });
+
+  res.status(201).json({ message: 'Reply sent to unmatched number.', smsMessage });
 });
 
 messagesRouter.get('/client/:clientId', async (req, res) => {
