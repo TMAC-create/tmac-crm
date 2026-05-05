@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Note = {
   id: string;
@@ -12,13 +12,6 @@ type Activity = {
   description: string;
   createdAt: string;
 };
-type TaskFormState = {
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-};
 type TaskItem = {
   id: string;
   clientId?: string | null;
@@ -29,7 +22,6 @@ type TaskItem = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'OPEN' | 'DONE';
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
-  outlookEventIds?: unknown;
   createdAt: string;
   updatedAt: string;
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
@@ -383,7 +375,6 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
-const [taskForm, setTaskForm] = useState<TaskFormState>({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -404,11 +395,37 @@ const [smsOverview, setSmsOverview] = useState<SmsMessageItem[]>([]);
 const [smsBody, setSmsBody] = useState('');
 const [selectedSmsTemplateId, setSelectedSmsTemplateId] = useState('');
 const [sendingSms, setSendingSms] = useState(false);
+const knownSmsNotificationIdsRef = useRef<Set<string>>(new Set());
+const [smsNotificationPermission, setSmsNotificationPermission] = useState<string>(() => {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+  return window.Notification.permission;
+});
 
   const isLoggedIn = useMemo(() => Boolean(token), [token]);
+  const unreadSmsCount = useMemo(() => {
+    return smsOverview.filter((message) => message.direction === 'INBOUND' && !message.readAt).length;
+  }, [smsOverview]);
+
 useEffect(() => {
   localStorage.setItem('tmac-creditor-master-list', JSON.stringify(creditorMasterList));
 }, [creditorMasterList]);
+
+useEffect(() => {
+  document.title = unreadSmsCount > 0 ? `(${unreadSmsCount}) TMAC CRM` : 'TMAC CRM';
+}, [unreadSmsCount]);
+
+useEffect(() => {
+  if (!token) return;
+
+  const timer = window.setInterval(() => {
+    loadSmsOverview(token);
+    if (selectedClientId && clientTab === 'sms') {
+      loadSmsMessages(selectedClientId, token);
+    }
+  }, 10000);
+
+  return () => window.clearInterval(timer);
+}, [token, selectedClientId, clientTab]);
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
@@ -1264,6 +1281,23 @@ function applyTemplateVariables(body: string, client: Client | null) {
     .replaceAll('{{email}}', client.email || '');
 }
 
+async function enableSmsNotifications() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    setSmsNotificationPermission('unsupported');
+    setError('Browser notifications are not supported in this browser.');
+    return;
+  }
+
+  const permission = await window.Notification.requestPermission();
+  setSmsNotificationPermission(permission);
+
+  if (permission === 'granted') {
+    setSuccess('Browser SMS notifications enabled.');
+  } else {
+    setError('Browser SMS notifications were not enabled.');
+  }
+}
+
 async function loadSmsMessages(clientId: string, activeToken = token) {
   const response = await fetch(API_URL + '/messages/client/' + clientId, {
     headers: { Authorization: 'Bearer ' + activeToken },
@@ -1277,24 +1311,28 @@ async function loadSmsOverview(activeToken = token) {
     headers: { Authorization: 'Bearer ' + activeToken },
   });
   if (!response.ok) return;
-  setSmsOverview(await response.json());
+
+  const data: SmsMessageItem[] = await response.json();
+  setSmsOverview(data);
+
+  const unreadInbound = data.filter((message) => message.direction === 'INBOUND' && !message.readAt);
+  const alreadyInitialised = knownSmsNotificationIdsRef.current.size > 0;
+  const newUnread = unreadInbound.filter((message) => !knownSmsNotificationIdsRef.current.has(message.id));
+
+  if (alreadyInitialised && newUnread.length > 0 && typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
+    const latest = newUnread[0];
+    const fromName = latest.client ? `${latest.client.firstName} ${latest.client.lastName}`.trim() : (latest.fromNumber || 'Unmatched number');
+    const notification = new window.Notification('New SMS reply', {
+      body: `${fromName}: ${latest.body}`,
+    });
+    notification.onclick = () => {
+      window.focus();
+      setView('sms');
+    };
+  }
+
+  unreadInbound.forEach((message) => knownSmsNotificationIdsRef.current.add(message.id));
 }
-
-
-
-useEffect(() => {
-  if (!isLoggedIn || !token) return;
-
-  const refreshSms = async () => {
-    await loadSmsOverview(token);
-    if (selectedClientId && clientTab === 'sms') {
-      await loadSmsMessages(selectedClientId, token);
-    }
-  };
-
-  const interval = window.setInterval(refreshSms, 10000);
-  return () => window.clearInterval(interval);
-}, [isLoggedIn, token, selectedClientId, clientTab]);
 
 async function markSmsRead(clientId: string) {
   await fetch(API_URL + '/messages/client/' + clientId + '/read', {
@@ -1738,7 +1776,6 @@ function renderGlobalTasks() {
     <div>
       <label>Callback notes</label>
       <textarea
-        className="task-notes-textarea"
         rows={3}
         value={callbackForm.notes}
         onChange={(e) =>
@@ -1780,7 +1817,6 @@ function renderGlobalTasks() {
     <div>
       <label>Callback notes</label>
       <textarea
-        className="task-notes-textarea"
         rows={3}
         value={callbackForm.notes}
         onChange={(e) =>
@@ -3350,7 +3386,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" style={{ minHeight: '240px', width: '100%' }} value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={12} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={10} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
@@ -3362,7 +3398,7 @@ function renderNotesTab() {
     const unread = smsOverview.filter((message) => message.direction === 'INBOUND' && !message.readAt);
     return (
       <>
-        <header className="page-header premium-header"><div><div className="eyebrow">SMS Centre</div><h2>SMS Overview</h2><p>Inbound Esendex replies and sent SMS history across all clients.</p></div><button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button></header>
+        <header className="page-header premium-header"><div><div className="eyebrow">SMS Centre</div><h2>SMS Overview {unreadSmsCount > 0 && <span className="sms-row-badge">{unreadSmsCount}</span>}</h2><p>Inbound Esendex replies and sent SMS history across all clients.</p></div><div className="header-actions">{smsNotificationPermission !== 'granted' && smsNotificationPermission !== 'unsupported' && <button className="secondary" onClick={enableSmsNotifications}>Enable browser alerts</button>}<button className="secondary" onClick={() => loadSmsOverview()}>Refresh SMS</button></div></header>
         <section className="card premium-panel">
           <div className="sms-overview-stats"><div><strong>{smsOverview.length}</strong><span>Total messages</span></div><div><strong>{unread.length}</strong><span>Unread replies</span></div></div>
           <div className="sms-overview-list">
@@ -3456,7 +3492,7 @@ function renderNotesTab() {
     <>
       <header className="page-header premium-header"><div><div className="eyebrow">Administration</div><h2>Admin Centre</h2><p>Manage SMS/email templates and the creditor master list.</p></div><button className="secondary" onClick={() => loadTemplates()}>Refresh templates</button></header>
       <section className="admin-accordion">
-        <details className="card premium-panel admin-details">
+        <details className="card premium-panel admin-details" open>
           <summary><div><h3>Templates</h3><p>SMS and email templates with merge variables.</p></div><span>{templates.length} templates</span></summary>
           <div className="detail-sections">
             <section className="detail-section">
@@ -3465,7 +3501,7 @@ function renderNotesTab() {
                 <div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
                 <div><label>Template type</label><select value={templateForm.type} onChange={(e) => setTemplateForm((prev) => ({ ...prev, type: e.target.value as 'SMS' | 'EMAIL' }))}><option value="SMS">SMS</option><option value="EMAIL">Email</option></select></div>
                 {templateForm.type === 'EMAIL' && <div className="full-width"><label>Email subject</label><input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} /></div>}
-                <div className="full-width"><label>Template body</label><textarea className="template-body-textarea" style={{ minHeight: '260px', width: '100%' }} value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={14} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
+                <div className="full-width"><label>Template body</label><textarea className="template-body-textarea" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={12} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
                 <label className="checkbox-row"><input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} /> Active</label>
               </div>
               <div className="form-actions"><button className="secondary" onClick={resetTemplateForm}>Clear</button><button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Add template'}</button></div>
@@ -3478,7 +3514,7 @@ function renderNotesTab() {
             </section>
           </div>
         </details>
-        <details className="card premium-panel admin-details">
+        <details className="card premium-panel admin-details" open>
           <summary><div><h3>Creditor Master List</h3><p>Collapsible A-Z creditor list used in the debts tab.</p></div><span>{sortedCreditors.length} creditors</span></summary>
           <div className="detail-sections">
             <section className="detail-section">
@@ -3527,7 +3563,7 @@ function renderPlaceholder(title: string) {
             Global Tasks
           </button>
           <button className={`nav-item ${view === 'sms' ? 'active' : ''}`} onClick={() => { loadSmsOverview(); setView('sms'); }}>
-            SMS Overview
+            <span>SMS Overview</span>{unreadSmsCount > 0 && <span className="nav-badge">{unreadSmsCount}</span>}
           </button>
           <button className={`nav-item ${view === 'reporting' ? 'active' : ''}`} onClick={() => setView('reporting')}>
             Reporting
