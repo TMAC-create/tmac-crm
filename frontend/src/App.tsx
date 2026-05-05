@@ -385,9 +385,23 @@ const [editingCreditorId, setEditingCreditorId] = useState<string | null>(null);
 const [clientDocuments, setClientDocuments] = useState<ClientDocumentItem[]>([]);
 const [clientTasks, setClientTasks] = useState<TaskItem[]>([]);
 const [globalTasks, setGlobalTasks] = useState<TaskItem[]>([]);
-const [taskForm, setTaskForm] = useState({
+type TaskFormState = {
+  title: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  date: string;
+  time: string;
+  description: string;
+  dueDate: string;
+  dueTime: string;
+  notes: string;
+};
+
+const [taskForm, setTaskForm] = useState<TaskFormState>({
   title: '',
   priority: 'MEDIUM',
+  date: '',
+  time: '',
+  description: '',
   dueDate: '',
   dueTime: '',
   notes: '',
@@ -3136,7 +3150,7 @@ function renderTasksTab() {
             <label>Task title</label>
             <input
               value={taskForm.title}
-              onChange={(e) => setTaskForm((prev: typeof taskForm) => ({ ...prev, title: e.target.value }))}
+              onChange={(e) => setTaskForm((prev: TaskFormState) => ({ ...prev, title: e.target.value }))}
               placeholder="e.g. Call back client"
             />
           </div>
@@ -3145,7 +3159,7 @@ function renderTasksTab() {
             <label>Priority</label>
             <select
               value={taskForm.priority}
-              onChange={(e) => setTaskForm((prev: typeof taskForm) => ({ ...prev, priority: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' }))}
+              onChange={(e) => setTaskForm((prev: TaskFormState) => ({ ...prev, priority: e.target.value as TaskFormState['priority'] as 'LOW' | 'MEDIUM' | 'HIGH' }))}
             >
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
@@ -3158,7 +3172,7 @@ function renderTasksTab() {
             <input
               type="date"
               value={taskForm.date}
-              onChange={(e) => setTaskForm((prev: typeof taskForm) => ({ ...prev, date: e.target.value }))}
+              onChange={(e) => setTaskForm((prev: TaskFormState) => ({ ...prev, date: e.target.value }))}
             />
           </div>
 
@@ -3167,7 +3181,7 @@ function renderTasksTab() {
             <input
               type="time"
               value={taskForm.time}
-              onChange={(e) => setTaskForm((prev: typeof taskForm) => ({ ...prev, time: e.target.value }))}
+              onChange={(e) => setTaskForm((prev: TaskFormState) => ({ ...prev, time: e.target.value }))}
             />
           </div>
 
@@ -3176,7 +3190,7 @@ function renderTasksTab() {
             <textarea
               className="task-notes-textarea"
               value={taskForm.description}
-              onChange={(e) => setTaskForm((prev: typeof taskForm) => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => setTaskForm((prev: TaskFormState) => ({ ...prev, description: e.target.value }))}
               rows={4}
               placeholder="Add task notes or call-back details"
             />
