@@ -12,6 +12,14 @@ type Activity = {
   description: string;
   createdAt: string;
 };
+type TaskFormState = {
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+};
+
 type TaskItem = {
   id: string;
   clientId?: string | null;
@@ -22,6 +30,7 @@ type TaskItem = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'OPEN' | 'DONE';
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
+  outlookEventIds?: unknown;
   createdAt: string;
   updatedAt: string;
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
@@ -375,6 +384,7 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
+const [taskForm, setTaskForm] = useState<TaskFormState>({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
