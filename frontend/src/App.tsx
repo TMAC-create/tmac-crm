@@ -22,6 +22,7 @@ type TaskItem = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'OPEN' | 'DONE';
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
+  outlookEventIds?: string[] | null;
   createdAt: string;
   updatedAt: string;
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
