@@ -12,14 +12,6 @@ type Activity = {
   description: string;
   createdAt: string;
 };
-type TaskFormState = {
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-};
-
 type TaskItem = {
   id: string;
   clientId?: string | null;
@@ -30,7 +22,6 @@ type TaskItem = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'OPEN' | 'DONE';
   outcome?: 'COMPLETED' | 'NO_ANSWER' | 'RESCHEDULED' | 'CANCELLED' | null;
-  outlookEventIds?: unknown;
   createdAt: string;
   updatedAt: string;
   client?: Pick<Client, 'id' | 'reference' | 'firstName' | 'lastName' | 'mobile'> | null;
@@ -384,7 +375,6 @@ const [callbackForm, setCallbackForm] = useState({
   time: '',
   notes: '',
 });
-const [taskForm, setTaskForm] = useState<TaskFormState>({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
 const [creditorSearch, setCreditorSearch] = useState('');
 const [creditorMasterList, setCreditorMasterList] = useState<CreditorMasterItem[]>(() => {
   const saved = localStorage.getItem('tmac-creditor-master-list');
@@ -3333,7 +3323,7 @@ function renderNotesTab() {
           <div className="form-grid">
             <div><label>SMS template</label><select value={selectedSmsTemplateId} onChange={(e) => selectSmsTemplate(e.target.value)}><option value="">Select template or write manually</option>{smsTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
             <div><label>Mobile</label><input value={selectedClient.mobile || 'No mobile number'} disabled /></div>
-            <div className="full-width"><label>Message</label><textarea value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={5} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
+            <div className="full-width"><label>Message</label><textarea className="sms-compose-textarea" value={smsBody} onChange={(e) => setSmsBody(e.target.value)} rows={10} placeholder="Type SMS message" /><div className="sms-counter">{smsBody.length} characters</div></div>
           </div>
           <div className="form-actions"><button className="secondary" onClick={() => setSmsBody('')}>Clear</button><button className="primary" onClick={sendSmsMessage} disabled={sendingSms || !selectedClient.mobile || !smsBody.trim()}>{sendingSms ? 'Sending...' : 'Send SMS'}</button></div>
         </div>
@@ -3448,7 +3438,7 @@ function renderNotesTab() {
                 <div><label>Template name</label><input value={templateForm.name} onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
                 <div><label>Template type</label><select value={templateForm.type} onChange={(e) => setTemplateForm((prev) => ({ ...prev, type: e.target.value as 'SMS' | 'EMAIL' }))}><option value="SMS">SMS</option><option value="EMAIL">Email</option></select></div>
                 {templateForm.type === 'EMAIL' && <div className="full-width"><label>Email subject</label><input value={templateForm.subject} onChange={(e) => setTemplateForm((prev) => ({ ...prev, subject: e.target.value }))} /></div>}
-                <div className="full-width"><label>Template body</label><textarea value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={8} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
+                <div className="full-width"><label>Template body</label><textarea className="template-body-textarea" value={templateForm.body} onChange={(e) => setTemplateForm((prev) => ({ ...prev, body: e.target.value }))} rows={12} placeholder="Use variables: {{first_name}}, {{last_name}}, {{full_name}}, {{reference}}, {{mobile}}, {{email}}" /></div>
                 <label className="checkbox-row"><input type="checkbox" checked={templateForm.active} onChange={(e) => setTemplateForm((prev) => ({ ...prev, active: e.target.checked }))} /> Active</label>
               </div>
               <div className="form-actions"><button className="secondary" onClick={resetTemplateForm}>Clear</button><button className="primary" onClick={saveTemplate}>{editingTemplateId ? 'Update template' : 'Add template'}</button></div>
