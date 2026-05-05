@@ -391,9 +391,9 @@ type TaskFormState = {
   date: string;
   time: string;
   description: string;
-  dueDate: string;
-  dueTime: string;
-  notes: string;
+  dueDate?: string;
+  dueTime?: string;
+  notes?: string;
 };
 
 const [taskForm, setTaskForm] = useState<TaskFormState>({
@@ -1224,7 +1224,7 @@ async function createManualTaskFromForm() {
     taskForm.priority
   );
 
-  setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM' });
+  setTaskForm({ title: '', description: '', date: '', time: '', priority: 'MEDIUM', dueDate: '', dueTime: '', notes: '' });
 }
 async function loadTemplates(activeToken = token) {
   const response = await fetch(API_URL + '/templates', {
